@@ -1,0 +1,41 @@
+{
+    "channels": [
+        0,
+        0,
+        1,
+        0
+    ],
+    "measurements": {
+        "Vpp": 1,
+        "Vmin": 1,
+        "Vmax": 1,
+        "Frequency": 1,
+        "Pulse Width": 0,
+        "Fall Time": 0,
+        "Rise Time": 1,
+        "Duty Cycle": 0,
+        "RMS Voltage": 0,
+        "Average Voltage": 0,
+        "Amplitude": 0,
+        "Overshoot": 0,
+        "Preshoot": 0,
+        "Phase": 0,
+        "Edge Count": 0,
+        "Positive Edges": 0,
+        "Negative Pulses": 0,
+        "Positive Pulses": 0,
+        "XMin": 0,
+        "XMax": 0,
+        "VTop": 0,
+        "VBase": 0,
+        "VRatio": 0
+    },
+    "save_options": [
+        1,
+        1,
+        1,
+        1
+    ],
+    "save_directory": "C:/Users/ROG/Desktop/\u811a\u672c\u6d4b\u8bd5/\u6d4b\u8bd5\u6570\u636e",
+    "file_name": "waveform_data"
+}
