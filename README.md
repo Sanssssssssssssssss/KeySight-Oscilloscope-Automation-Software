@@ -1,24 +1,34 @@
 # KeySight Oscilloscope Automation Software
 
 ## 📌 Project Overview
-KeySight Oscilloscope Automation Software is a Python-based automation tool for controlling, acquiring, analyzing, and storing waveform data from KeySight oscilloscopes. It features a user-friendly GUI built with Tkinter and communicates with oscilloscopes via VISA (SCPI). The software supports multi-channel measurements and allows users to configure measurement processes using a drag-and-drop script editor.
+
+KeySight Oscilloscope Automation Software is a Python-based automation tool for controlling, acquiring, analyzing, and storing waveform data from KeySight oscilloscopes. It supports USB-connected oscilloscopes and is designed for **data-intensive measurements**, making it ideal for **high-precision signal analysis** and **automated waveform processing**. The software features a user-friendly GUI built with Tkinter and communicates with oscilloscopes via VISA (SCPI). Users can configure measurement processes using a drag-and-drop script editor.
 
 ## 🎯 Features
-- **Automated Oscilloscope Control:** Connects to KeySight oscilloscopes via VISA protocol.
-- **Multi-Channel Measurement:** Supports measurements like Vpp, Frequency, Duty Cycle, RMS Voltage, and more.
+
+- **Automated Oscilloscope Control:** Connects to KeySight oscilloscopes via USB using VISA protocol.
+- **Multi-Channel Measurement:** Supports measurements such as:
+  - Peak-to-Peak Voltage (Vpp)
+  - Minimum Voltage (Vmin), Maximum Voltage (Vmax)
+  - Frequency & Period
+  - Pulse Width & Duty Cycle
+  - RMS Voltage & Average Voltage
+  - Rise Time & Fall Time
+  - Edge Count & Pulse Count (Positive/Negative)
+  - Mean Voltage & Standard Deviation
+  - Amplitude, Overshoot & Preshoot
+  - Bandwidth, Bit Rate & Phase Difference
+  - XMin, XMax, VTop, VBase, and VRatio
 - **Waveform Visualization:** Uses Matplotlib for real-time waveform plotting.
 - **Data Export & Storage:** Save measurements in JSON, CSV, Excel, and PNG formats.
 - **Graphical User Interface:** Built with Tkinter for ease of use.
 - **Custom Measurement Configuration:** Drag-and-drop script editor for flexible setup.
 - **Support for Multiple Oscilloscope Models:** Adaptable to various KeySight oscilloscope models.
 
-## 🛠 Installation & Usage
-### **1️⃣ Prerequisites**
-Make sure you have Python installed (Python 3.7+ recommended). Also, install the required dependencies:
-```bash
-pip install -r requirements.txt
-```
+## 🌄 Home Page
+![image](https://github.com/user-attachments/assets/392d5f0d-a3d0-41fe-8726-0389da0ef552)
 
+## 🛠 Installation & Usage
 ### **2️⃣ Running the Software**
 ```bash
 KeysightSoftware.exe
@@ -43,11 +53,8 @@ Contributions are welcome! If you find bugs or have feature suggestions, feel fr
 4. Push to your fork 🔄
 5. Submit a pull request 🚀
 
-## 📜 License
-This project is licensed under the MIT License.
-
 ## 📩 Contact
-For any inquiries, reach out to **[Your Email]** or open an issue in this repository.
+For any inquiries, reach out to **[cyhx2333@163.com]** or open an issue in this repository.
 
 
 
