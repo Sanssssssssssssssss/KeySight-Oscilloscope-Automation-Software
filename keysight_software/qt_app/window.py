@@ -16,40 +16,33 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from keysight_software import config
+from keysight_software.qt_app.pages.axis_control import AxisControlPage
+from keysight_software.qt_app.pages.batch_process import BatchProcessPage
 from keysight_software.qt_app.pages.home import HomePage
+from keysight_software.qt_app.pages.run_script import RunScriptPage
+from keysight_software.qt_app.pages.script_editor import ScriptEditorPage
+from keysight_software.qt_app.pages.settings import SettingsPage
+from keysight_software.qt_app.pages.waveform_capture import WaveformCapturePage
+from keysight_software.qt_app.state import AppState
 from keysight_software.qt_app.styles import APP_STYLESHEET
-
-
-class PlaceholderPage(QWidget):
-    def __init__(self, title: str, body: str):
-        super().__init__()
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        card = QFrame()
-        card.setObjectName("SurfaceCard")
-        card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(26, 24, 26, 24)
-        heading = QLabel(title)
-        heading.setObjectName("MetricValue")
-        text = QLabel(body)
-        text.setObjectName("MutedBody")
-        text.setWordWrap(True)
-        card_layout.addWidget(heading)
-        card_layout.addWidget(text)
-        layout.addWidget(card)
-        layout.addStretch(1)
 
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+        self.state = AppState()
         self.nav_buttons: dict[str, QPushButton] = {}
         self.page_titles: dict[str, tuple[str, str]] = {}
+        self.page_indexes: dict[str, int] = {}
+        self.runner_page: RunScriptPage | None = None
         self.setWindowTitle("Keysight Automation Studio")
-        self.resize(1500, 930)
-        self.setMinimumSize(1180, 760)
+        self.resize(1490, 920)
+        self.setMinimumSize(1160, 760)
         self.setStyleSheet(APP_STYLESHEET)
         self.build_ui()
+        self.state.changed.connect(self.refresh_status)
+        self.refresh_status()
 
     def build_ui(self):
         shell = QWidget()
@@ -60,79 +53,81 @@ class MainWindow(QMainWindow):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        sidebar = self.build_sidebar()
-        root.addWidget(sidebar)
+        root.addWidget(self.build_sidebar())
 
         content = QWidget()
         content_layout = QVBoxLayout(content)
-        content_layout.setContentsMargins(28, 18, 28, 18)
-        content_layout.setSpacing(14)
+        content_layout.setContentsMargins(22, 14, 22, 14)
+        content_layout.setSpacing(12)
         root.addWidget(content, 1)
 
-        topbar = self.build_topbar()
-        content_layout.addWidget(topbar)
+        content_layout.addWidget(self.build_topbar())
 
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setFrameShape(QFrame.NoFrame)
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.scroll_area.setStyleSheet("QScrollArea { background: transparent; }")
         content_layout.addWidget(self.scroll_area, 1)
 
-        self.page_host = QWidget()
-        self.page_host_layout = QVBoxLayout(self.page_host)
-        self.page_host_layout.setContentsMargins(0, 0, 0, 0)
-        self.page_host_layout.setSpacing(0)
-        self.scroll_area.setWidget(self.page_host)
-
+        host = QWidget()
+        host_layout = QVBoxLayout(host)
+        host_layout.setContentsMargins(0, 0, 0, 0)
         self.pages = QStackedWidget()
-        self.page_host_layout.addWidget(self.pages)
+        host_layout.addWidget(self.pages)
+        self.scroll_area.setWidget(host)
 
+        self.runner_page = RunScriptPage(self.state)
         self.add_page(
             "home",
             "Instrument workspace",
-            "Connection setup, workspace defaults and live instrument discovery.",
-            HomePage(),
+            "Connection setup, workspace defaults, and live instrument discovery.",
+            HomePage(self.state),
         )
         self.add_page(
             "capture",
             "Waveform capture",
-            "Qt migration target. This page will be ported next if the shell direction feels right.",
-            PlaceholderPage("Waveform capture", "Planned next: charting, live controls, and export cards."),
+            "Acquire channels, inspect traces, and export the latest waveform bundle.",
+            WaveformCapturePage(self.state),
         )
         self.add_page(
             "axis",
             "Axis control",
-            "Qt migration target. This page will be ported after the shell and home page are approved.",
-            PlaceholderPage("Axis control", "Planned next: tighter forms and instrument presets."),
+            "Tune timebase, channel scale, and marker presets for the active bench.",
+            AxisControlPage(self.state),
         )
         self.add_page(
             "script",
             "Script editor",
-            "Qt migration target. The list-based workflow editor can be ported onto this shell next.",
-            PlaceholderPage("Script editor", "Planned next: sequence builder, detail panel, and runner handoff."),
+            "Compose reusable module sequences and hand them off to the runner.",
+            ScriptEditorPage(self.show_page, self.open_runner, self.status_tuple),
         )
         self.add_page(
             "runner",
             "Run script",
-            "Qt migration target. This page can reuse the same shell and condensed status patterns.",
-            PlaceholderPage("Run script", "Planned next: script execution timeline and live status feed."),
+            "Load sequence packages and execute them with shared bench state.",
+            self.runner_page,
+        )
+        self.add_page(
+            "batch",
+            "Batch process",
+            "Merge repeated run folders into a final consolidated measurements package.",
+            BatchProcessPage(),
         )
         self.add_page(
             "settings",
             "Settings",
-            "Qt migration target. Remaining workspace defaults can be folded into a more compact settings page.",
-            PlaceholderPage("Settings", "Planned next: file paths, device defaults, and build/runtime preferences."),
+            "Adjust runtime defaults, export preferences, and fallback workspace values.",
+            SettingsPage(),
         )
         self.show_page("home")
 
     def build_sidebar(self):
         sidebar = QFrame()
         sidebar.setObjectName("Sidebar")
-        sidebar.setFixedWidth(164)
+        sidebar.setFixedWidth(148)
         layout = QVBoxLayout(sidebar)
-        layout.setContentsMargins(12, 16, 12, 16)
-        layout.setSpacing(10)
+        layout.setContentsMargins(10, 14, 10, 14)
+        layout.setSpacing(8)
 
         brand = QLabel("Keysight")
         brand.setObjectName("SidebarBrand")
@@ -140,7 +135,7 @@ class MainWindow(QMainWindow):
         sub = QLabel("Automation Studio")
         sub.setObjectName("SidebarSub")
         layout.addWidget(sub)
-        layout.addSpacing(10)
+        layout.addSpacing(6)
 
         nav_items = [
             ("home", "Home"),
@@ -148,10 +143,11 @@ class MainWindow(QMainWindow):
             ("axis", "Axis"),
             ("script", "Scripts"),
             ("runner", "Runner"),
+            ("batch", "Batch"),
             ("settings", "Settings"),
         ]
-        for key, label in nav_items:
-            button = QPushButton(label)
+        for key, label_text in nav_items:
+            button = QPushButton(label_text)
             button.setProperty("nav", True)
             button.setCursor(Qt.PointingHandCursor)
             button.clicked.connect(partial(self.show_page, key))
@@ -159,9 +155,8 @@ class MainWindow(QMainWindow):
             self.nav_buttons[key] = button
 
         layout.addStretch(1)
-        footer = QLabel("Qt shell")
+        footer = QLabel("Qt client")
         footer.setObjectName("SidebarSub")
-        footer.setWordWrap(True)
         layout.addWidget(footer)
         return sidebar
 
@@ -173,10 +168,10 @@ class MainWindow(QMainWindow):
         layout.setSpacing(10)
 
         title_box = QVBoxLayout()
-        title_box.setSpacing(2)
-        self.page_title = QLabel("Instrument workspace")
+        title_box.setSpacing(0)
+        self.page_title = QLabel()
         self.page_title.setObjectName("PageTitle")
-        self.page_subtitle = QLabel("Connection setup, workspace defaults and live instrument discovery.")
+        self.page_subtitle = QLabel()
         self.page_subtitle.setObjectName("PageSubtitle")
         self.page_subtitle.setWordWrap(True)
         title_box.addWidget(self.page_title)
@@ -187,32 +182,32 @@ class MainWindow(QMainWindow):
         self.status_bar.setObjectName("StatusBar")
         self.status_bar.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
         status_layout = QHBoxLayout(self.status_bar)
-        status_layout.setContentsMargins(10, 7, 10, 7)
-        status_layout.setSpacing(8)
+        status_layout.setContentsMargins(9, 6, 9, 6)
+        status_layout.setSpacing(7)
         meta = QLabel("Connection")
         meta.setObjectName("StatusMeta")
-        self.status_text = QLabel("Offline")
+        self.status_text = QLabel("Disconnected")
         self.status_text.setObjectName("StatusText")
         self.status_text.setProperty("status", "warn")
         self.status_hint = QLabel("Offline mode available")
         self.status_hint.setObjectName("StatusHint")
         reconnect = QPushButton("Reconnect")
         reconnect.setObjectName("GhostButton")
-        reconnect.setFixedHeight(30)
+        reconnect.setFixedHeight(28)
+        reconnect.clicked.connect(self.reconnect_scope)
         status_layout.addWidget(meta)
         status_layout.addWidget(self.status_text)
         status_layout.addWidget(self.status_hint)
         status_layout.addWidget(reconnect)
-        layout.addWidget(self.status_bar, 0, Qt.AlignTop)
+        layout.addWidget(self.status_bar, 0, Qt.AlignRight | Qt.AlignTop)
         return bar
 
     def add_page(self, key: str, title: str, subtitle: str, widget: QWidget):
         self.page_titles[key] = (title, subtitle)
-        self.pages.addWidget(widget)
+        self.page_indexes[key] = self.pages.addWidget(widget)
 
     def show_page(self, key: str):
-        page_index = list(self.page_titles.keys()).index(key)
-        self.pages.setCurrentIndex(page_index)
+        self.pages.setCurrentIndex(self.page_indexes[key])
         title, subtitle = self.page_titles[key]
         self.page_title.setText(title)
         self.page_subtitle.setText(subtitle)
@@ -221,3 +216,37 @@ class MainWindow(QMainWindow):
             button.style().unpolish(button)
             button.style().polish(button)
         self.scroll_area.verticalScrollBar().setValue(0)
+
+    def status_tuple(self) -> tuple[str, str, bool]:
+        snapshot = self.state.snapshot()
+        return snapshot.label, snapshot.summary, snapshot.connected
+
+    def refresh_status(self):
+        snapshot = self.state.snapshot()
+        self.status_text.setText(snapshot.label)
+        self.status_text.setProperty("status", "ok" if snapshot.connected else "warn")
+        self.status_text.style().unpolish(self.status_text)
+        self.status_text.style().polish(self.status_text)
+        if snapshot.connected and snapshot.active_channels:
+            channels = ", ".join(f"CH{channel}" for channel in snapshot.active_channels)
+            self.status_hint.setText(f"{channels} ready")
+        elif snapshot.connected:
+            self.status_hint.setText("Bench ready")
+        else:
+            self.status_hint.setText("Offline mode available")
+        for index in range(self.pages.count()):
+            widget = self.pages.widget(index)
+            if hasattr(widget, "refresh_status"):
+                widget.refresh_status()
+
+    def reconnect_scope(self):
+        self.state.connect_scope(config.VISA_ADDRESS, config.GLOBAL_TIMEOUT)
+
+    def open_runner(self, sequence_path: str):
+        if self.runner_page is not None:
+            self.runner_page.load_script(sequence_path)
+        self.show_page("runner")
+
+    def closeEvent(self, event):
+        self.state.close_scope()
+        super().closeEvent(event)

@@ -1,6 +1,10 @@
 import unittest
 from unittest import mock
 
+from keysight_software.app import configure_tk_runtime
+
+configure_tk_runtime()
+
 import tkinter as tk
 
 from keysight_software.ui.dialogs.axis_control_config import AxisControlConfig

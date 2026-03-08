@@ -20,13 +20,28 @@ class QtSmokeTests(unittest.TestCase):
         from keysight_software.qt_app.window import MainWindow
 
         window = MainWindow()
-        self.assertGreaterEqual(len(window.nav_buttons), 1)
+        self.assertEqual(
+            set(window.nav_buttons),
+            {"home", "capture", "axis", "script", "runner", "batch", "settings"},
+        )
         self.assertEqual(window.page_title.text(), "Instrument workspace")
-        window.show_page("script")
-        self.assertEqual(window.page_title.text(), "Script editor")
+        for key, expected in (
+            ("capture", "Waveform capture"),
+            ("axis", "Axis control"),
+            ("script", "Script editor"),
+            ("runner", "Run script"),
+            ("batch", "Batch process"),
+            ("settings", "Settings"),
+        ):
+            window.show_page(key)
+            self.assertEqual(window.page_title.text(), expected)
         window.close()
+
+    def test_main_entrypoint_uses_qt_app(self):
+        import main
+
+        self.assertEqual(main.main.__module__, "keysight_software.qt_app.app")
 
 
 if __name__ == "__main__":
     unittest.main()
-
