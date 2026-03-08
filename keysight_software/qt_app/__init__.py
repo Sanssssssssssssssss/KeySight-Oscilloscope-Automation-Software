@@ -1,0 +1,2 @@
+"""Qt frontend package."""
+

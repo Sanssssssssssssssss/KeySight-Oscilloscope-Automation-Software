@@ -40,12 +40,12 @@ class MainGUI:
         self.show_home()
 
     def build_shell(self):
-        self.sidebar = tk.Frame(self.master, bg=COLORS["surface"], width=212, bd=1, relief="solid")
+        self.sidebar = tk.Frame(self.master, bg=COLORS["surface"], width=194, bd=1, relief="solid")
         self.sidebar.grid(row=0, column=0, sticky="ns")
         self.sidebar.grid_propagate(False)
 
         brand = tk.Frame(self.sidebar, bg=COLORS["surface"])
-        brand.pack(fill="x", padx=18, pady=(24, 18))
+        brand.pack(fill="x", padx=16, pady=(22, 16))
         tk.Label(
             brand,
             text="Keysight",
@@ -73,7 +73,7 @@ class MainGUI:
             ("settings", "Settings", self.show_settings),
         ]
         nav_wrapper = tk.Frame(self.sidebar, bg=COLORS["surface"])
-        nav_wrapper.pack(fill="x", padx=10, pady=(0, 14))
+        nav_wrapper.pack(fill="x", padx=8, pady=(0, 12))
         for key, label, command in nav_items:
             button = tk.Button(
                 nav_wrapper,
@@ -87,8 +87,8 @@ class MainGUI:
                 relief="flat",
                 bd=0,
                 highlightthickness=0,
-                padx=14,
-                pady=12,
+                padx=12,
+                pady=10,
                 font=FONTS["body_bold"],
                 cursor="hand2",
             )
@@ -96,7 +96,7 @@ class MainGUI:
             self.nav_buttons[key] = button
 
         footer = tk.Frame(self.sidebar, bg=COLORS["surface"])
-        footer.pack(side="bottom", fill="x", padx=18, pady=20)
+        footer.pack(side="bottom", fill="x", padx=16, pady=18)
         tk.Label(
             footer,
             text="White, minimal and task-focused.\nDesigned for bench automation workflows.",
@@ -202,7 +202,7 @@ class MainGUI:
         if event.widget is not self.master:
             return
         compact = event.width < 1120
-        self.sidebar.configure(width=188 if compact else 212)
+        self.sidebar.configure(width=172 if compact else 194)
         header_stacked = event.width < 1380
         if header_stacked:
             self.header.grid_columnconfigure(1, weight=0)
