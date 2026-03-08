@@ -28,6 +28,16 @@ from tkinter import filedialog, messagebox
 import openpyxl  # Importing the openpyxl module to work with Excel files
 
 from config import VISA_ADDRESS  # Importing global variables
+from waveform_utils import (
+    build_measurement_row,
+    collect_channel_measurements,
+    collect_shared_measurements,
+    format_channel_measurement_lines,
+    format_shared_measurement_lines,
+    get_measurement_names,
+    get_selected_measurement_headers,
+    write_waveforms_to_csv,
+)
 
 
 class WaveformCapture:
@@ -40,6 +50,9 @@ class WaveformCapture:
         self.measurement_vars = [tk.StringVar(value="") for _ in range(4)]
         self.save_directory = setting.get_save_directory()  # Using paths in setting
         self.selected_measurements = {}  # For saving the user's measurement selections
+        self.last_waveforms = {}
+        self.last_channel_measurements = {}
+        self.last_shared_measurements = {}
 
         # Create Matplotlib Figure
         self.figure = Figure(figsize=(8, 4), dpi=100)
@@ -101,7 +114,7 @@ class WaveformCapture:
 
         # Try to load the previously saved configuration from a file
         try:
-            with open("measurement_config.json", "r") as f:
+            with open("measurement_config.json", "r", encoding="utf-8") as f:
                 config = json.load(f)
                 self.selected_measurements = config.get("selected_measurements", {})
                 self.selected_channel_1 = config.get("selected_channel_1", 1)
@@ -140,7 +153,7 @@ class WaveformCapture:
 
         # Load previously saved selections from the JSON file
         try:
-            with open("measurement_config.json", "r") as f:
+            with open("measurement_config.json", "r", encoding="utf-8") as f:
                 config = json.load(f)
             saved_measurements = config.get("selected_measurements", {})
             self.selected_channel_1 = config.get("selected_channel_1", 1)
@@ -152,29 +165,8 @@ class WaveformCapture:
 
         # Initialize measurement selection variables
         self.measurement_selection_vars = {
-            "Vpp": tk.IntVar(value=saved_measurements.get("Vpp", 0)),
-            "Vmin": tk.IntVar(value=saved_measurements.get("Vmin", 0)),
-            "Vmax": tk.IntVar(value=saved_measurements.get("Vmax", 0)),
-            "Frequency": tk.IntVar(value=saved_measurements.get("Frequency", 0)),
-            "Pulse Width": tk.IntVar(value=saved_measurements.get("Pulse Width", 0)),
-            "Fall Time": tk.IntVar(value=saved_measurements.get("Fall Time", 0)),
-            "Rise Time": tk.IntVar(value=saved_measurements.get("Rise Time", 0)),
-            "Duty Cycle": tk.IntVar(value=saved_measurements.get("Duty Cycle", 0)),
-            "RMS Voltage": tk.IntVar(value=saved_measurements.get("RMS Voltage", 0)),
-            "Average Voltage": tk.IntVar(value=saved_measurements.get("Average Voltage", 0)),
-            "Amplitude": tk.IntVar(value=saved_measurements.get("Amplitude", 0)),
-            "Overshoot": tk.IntVar(value=saved_measurements.get("Overshoot", 0)),
-            "Preshoot": tk.IntVar(value=saved_measurements.get("Preshoot", 0)),
-            "Phase": tk.IntVar(value=saved_measurements.get("Phase", 0)),
-            "Edge Count": tk.IntVar(value=saved_measurements.get("Edge Count", 0)),
-            "Positive Edges": tk.IntVar(value=saved_measurements.get("Positive Edges", 0)),
-            "Negative Pulses": tk.IntVar(value=saved_measurements.get("Negative Pulses", 0)),
-            "Positive Pulses": tk.IntVar(value=saved_measurements.get("Positive Pulses", 0)),
-            "XMin": tk.IntVar(value=saved_measurements.get("XMin", 0)),
-            "XMax": tk.IntVar(value=saved_measurements.get("XMax", 0)),
-            "VTop": tk.IntVar(value=saved_measurements.get("VTop", 0)),
-            "VBase": tk.IntVar(value=saved_measurements.get("VBase", 0)),
-            "VRatio": tk.IntVar(value=saved_measurements.get("VRatio", 0)),
+            name: tk.IntVar(value=saved_measurements.get(name, 0))
+            for name in get_measurement_names()
         }
 
         # Create a selection screen
@@ -215,7 +207,7 @@ class WaveformCapture:
             "selected_channel_1": self.selected_channel_1,
             "selected_channel_2": self.selected_channel_2
         }
-        with open("measurement_config.json", "w") as f:
+        with open("measurement_config.json", "w", encoding="utf-8") as f:
             json.dump(config, f)
 
         self.selection_window.destroy()  # Close the child window after saving
@@ -243,9 +235,6 @@ class WaveformCapture:
         if not self.is_connected:
             return  # Exit if not connected to the oscilloscope
 
-        if not self.is_connected:
-            return  # Exit if not connected to the oscilloscope
-
         active_channels = self.osc.get_active_channels()
         for i in range(4):
             if i + 1 in active_channels:
@@ -253,121 +242,51 @@ class WaveformCapture:
             else:
                 self.channel_vars[i].set(0)
 
+    def get_selected_channels(self):
+        return [index + 1 for index, var in enumerate(self.channel_vars) if var.get() == 1]
+
     def capture_waveform(self):
         '''Captures waveform data from selected channels and displays the results.'''
         if not self.is_connected:
             messagebox.showerror("Error", "Oscilloscope is not connected. Cannot capture waveform.")
             return
 
-        selected_channels = [i + 1 for i, var in enumerate(self.channel_vars) if var.get() == 1]
+        selected_channels = self.get_selected_channels()
 
         if not selected_channels:
             messagebox.showwarning("No Channel Selected", "Please select at least one channel.")
             return
 
+        self.console_output.delete("1.0", tk.END)
         waveforms = {}
+        channel_measurements = {}
         for channel in selected_channels:
             time_values, waveform_data = self.osc.capture_waveform(channel=channel)
             waveforms[channel] = (time_values, waveform_data)
+            channel_measurements[channel] = collect_channel_measurements(
+                self.measure,
+                self.selected_measurements,
+                channel,
+            )
+            for line in format_channel_measurement_lines(channel, channel_measurements[channel]):
+                self.console_output.insert(tk.END, f"{line}\n")
 
-            # Performs measurements based on user selection
-            if self.selected_measurements.get("Vpp"):
-                vpp = self.measure.measure_vpp(channel)
-                self.console_output.insert(tk.END, f"Channel {channel} - Vpp: {vpp} V\n")
+        shared_measurements = collect_shared_measurements(
+            self.measure,
+            self.selected_measurements,
+            self.selected_channel_1,
+            self.selected_channel_2,
+        )
+        for line in format_shared_measurement_lines(
+            shared_measurements,
+            self.selected_channel_1,
+            self.selected_channel_2,
+        ):
+            self.console_output.insert(tk.END, f"{line}\n")
 
-            if self.selected_measurements.get("Vmin"):
-                vmin = self.measure.measure_vmin(channel)
-                self.console_output.insert(tk.END, f"Channel {channel} - Vmin: {vmin} V\n")
-
-            if self.selected_measurements.get("Vmax"):
-                vmax = self.measure.measure_vmax(channel)
-                self.console_output.insert(tk.END, f"Channel {channel} - Vmax: {vmax} V\n")
-
-            if self.selected_measurements.get("Frequency"):
-                frequency = self.measure.measure_frequency(channel)
-                self.console_output.insert(tk.END, f"Channel {channel} - Frequency: {frequency} Hz\n")
-
-            if self.selected_measurements.get("Period"):
-                period = self.measure.measure_period(channel)
-                self.console_output.insert(tk.END, f"Channel {channel} - Period: {period} s\n")
-
-            if self.selected_measurements.get("Pulse Width"):
-                pulse_width = self.measure.measure_pulse_width(channel)
-                self.console_output.insert(tk.END, f"Channel {channel} - Pulse Width: {pulse_width} s\n")
-
-            if self.selected_measurements.get("Fall Time"):
-                fall_time = self.measure.measure_fall_time(channel)
-                self.console_output.insert(tk.END, f"Channel {channel} - Fall Time: {fall_time} s\n")
-
-            if self.selected_measurements.get("Rise Time"):
-                rise_time = self.measure.measure_rise_time(channel)
-                self.console_output.insert(tk.END, f"Channel {channel} - Rise Time: {rise_time} s\n")
-
-            if self.selected_measurements.get("Duty Cycle"):
-                duty_cycle = self.measure.measure_duty_cycle(channel)
-                self.console_output.insert(tk.END, f"Channel {channel} - Duty Cycle: {duty_cycle} %\n")
-
-            if self.selected_measurements.get("RMS Voltage"):
-                rms_voltage = self.measure.measure_rms_voltage(channel)
-                self.console_output.insert(tk.END, f"Channel {channel} - RMS Voltage: {rms_voltage} V\n")
-
-            if self.selected_measurements.get("Average Voltage"):
-                avg_voltage = self.measure.measure_average_voltage(channel)
-                self.console_output.insert(tk.END, f"Channel {channel} - Average Voltage: {avg_voltage} V\n")
-
-            if self.selected_measurements.get("Amplitude"):
-                amplitude = self.measure.measure_amplitude(channel)
-                self.console_output.insert(tk.END, f"Channel {channel} - Amplitude: {amplitude} V\n")
-
-            if self.selected_measurements.get("Overshoot"):
-                overshoot = self.measure.measure_overshoot(channel)
-                self.console_output.insert(tk.END, f"Channel {channel} - Overshoot: {overshoot} %\n")
-
-            if self.selected_measurements.get("Preshoot"):
-                preshoot = self.measure.measure_preshoot(channel)
-                self.console_output.insert(tk.END, f"Channel {channel} - Preshoot: {preshoot} %\n")
-
-            if self.selected_measurements.get("Phase"):
-                phase = self.measure.measure_phase(self.selected_channel_1, self.selected_channel_2)
-                self.console_output.insert(tk.END,
-                                           f"Phase between Channel {self.selected_channel_1} and {self.selected_channel_2}: {phase} degrees\n")
-
-            if self.selected_measurements.get("Edge Count"):
-                edge_count = self.measure.measure_edge_count(channel)
-                self.console_output.insert(tk.END, f"Channel {channel} - Edge Count: {edge_count}\n")
-
-            if self.selected_measurements.get("Positive Edges"):
-                pos_edges = self.measure.measure_pos_edge_count(channel)
-                self.console_output.insert(tk.END, f"Channel {channel} - Positive Edges: {pos_edges}\n")
-
-            if self.selected_measurements.get("Negative Pulses"):
-                neg_pulses = self.measure.measure_n_pulses(channel)
-                self.console_output.insert(tk.END, f"Channel {channel} - Negative Pulses: {neg_pulses}\n")
-
-            if self.selected_measurements.get("Positive Pulses"):
-                pos_pulses = self.measure.measure_p_pulses(channel)
-                self.console_output.insert(tk.END, f"Channel {channel} - Positive Pulses: {pos_pulses}\n")
-
-            if self.selected_measurements.get("XMin"):
-                xmin = self.measure.measure_xmin(channel)
-                self.console_output.insert(tk.END, f"Channel {channel} - XMin: {xmin}\n")
-
-            if self.selected_measurements.get("XMax"):
-                xmax = self.measure.measure_xmax(channel)
-                self.console_output.insert(tk.END, f"Channel {channel} - XMax: {xmax}\n")
-
-            if self.selected_measurements.get("VTop"):
-                vtop = self.measure.measure_vtop(channel)
-                self.console_output.insert(tk.END, f"Channel {channel} - VTop: {vtop} V\n")
-
-            if self.selected_measurements.get("VBase"):
-                vbase = self.measure.measure_vbase(channel)
-                self.console_output.insert(tk.END, f"Channel {channel} - VBase: {vbase} V\n")
-
-            if self.selected_measurements.get("VRatio"):
-                vratio = self.measure.measure_vratio(channel)
-                self.console_output.insert(tk.END, f"Channel {channel} - VRatio: {vratio} dB\n")
-
+        self.last_waveforms = waveforms
+        self.last_channel_measurements = channel_measurements
+        self.last_shared_measurements = shared_measurements
         self.console_output.see(tk.END)
         self.osc.plot_all_waveforms(waveforms, self.ax, self.canvas)
 
@@ -377,6 +296,10 @@ class WaveformCapture:
         file_name = self.filename_entry.get()
         if not file_name:
             messagebox.showwarning("Invalid File Name", "Please enter a valid file name.")
+            return
+
+        if not self.last_waveforms:
+            messagebox.showwarning("No Waveform Data", "Capture waveform data before saving.")
             return
 
         # Use setting.SAVE_DIRECTORY as the default path
@@ -413,28 +336,8 @@ class WaveformCapture:
         # Save CSV file
         if self.save_options[2].get():
             csv_path = os.path.join(full_save_dir, f"{file_name}_waveform_data.csv")
-            with open(csv_path, 'w') as f:
-                # Assume that the timeline is the same for each channel, so we only write the timeline once
-                f.write("Time (s)")
-                for i in range(4):
-                    if self.channel_vars[i].get():
-                        f.write(f", Channel {i + 1} Amplitude (V)")
-                f.write("\n")
-
-                # Get waveform data of all selected channels
-                all_waveforms = []
-                for i in range(4):
-                    if self.channel_vars[i].get():
-                        time_values, waveform_data = self.osc.capture_waveform(i + 1)
-                        all_waveforms.append((time_values, waveform_data))
-
-                # Assuming that each channel has the same data length, data can be written at the same time
-                for j in range(len(all_waveforms[0][0])):
-                    # Write Time Value
-                    f.write(f"{all_waveforms[0][0][j]}")
-                    for time_values, waveform_data in all_waveforms:
-                        f.write(f", {waveform_data[j]}")
-                    f.write("\n")
+            write_waveforms_to_csv(csv_path, self.last_waveforms)
+            self.console_output.insert(tk.END, f"Waveform data saved at {csv_path}\n")
 
         if self.save_options[3].get():
             excel_path = os.path.join(full_save_dir, f"{file_name}_measurements.xlsx")
@@ -443,64 +346,18 @@ class WaveformCapture:
             sheet.title = "Measurements"
 
             # Write the title according to the selected measurement
-            headers = ["Channel"] + [key for key, selected in self.selected_measurements.items() if selected]
+            headers = ["Channel"] + get_selected_measurement_headers(self.selected_measurements)
             sheet.append(headers)
 
             # Write data for each channel
-            for i in range(4):
-                if self.channel_vars[i].get():
-                    channel_data = [f"Channel {i + 1}"]
-                    if self.selected_measurements.get("Vpp"):
-                        channel_data.append(self.measure.measure_vpp(i + 1))
-                    if self.selected_measurements.get("Vmin"):
-                        channel_data.append(self.measure.measure_vmin(i + 1))
-                    if self.selected_measurements.get("Vmax"):
-                        channel_data.append(self.measure.measure_vmax(i + 1))
-                    if self.selected_measurements.get("Frequency"):
-                        channel_data.append(self.measure.measure_frequency(i + 1))
-                    if self.selected_measurements.get("Period"):
-                        channel_data.append(self.measure.measure_period(i + 1))
-                    if self.selected_measurements.get("Pulse Width"):
-                        channel_data.append(self.measure.measure_pulse_width(i + 1))
-                    if self.selected_measurements.get("Fall Time"):
-                        channel_data.append(self.measure.measure_fall_time(i + 1))
-                    if self.selected_measurements.get("Rise Time"):
-                        channel_data.append(self.measure.measure_rise_time(i + 1))
-                    if self.selected_measurements.get("Duty Cycle"):
-                        channel_data.append(self.measure.measure_duty_cycle(i + 1))
-                    if self.selected_measurements.get("RMS Voltage"):
-                        channel_data.append(self.measure.measure_rms_voltage(i + 1))
-                    if self.selected_measurements.get("Average Voltage"):
-                        channel_data.append(self.measure.measure_average_voltage(i + 1))
-                    if self.selected_measurements.get("Amplitude"):
-                        channel_data.append(self.measure.measure_amplitude(i + 1))
-                    if self.selected_measurements.get("Overshoot"):
-                        channel_data.append(self.measure.measure_overshoot(i + 1))
-                    if self.selected_measurements.get("Preshoot"):
-                        channel_data.append(self.measure.measure_preshoot(i + 1))
-                    if self.selected_measurements.get("Edge Count"):
-                        channel_data.append(self.measure.measure_edge_count(i + 1))
-                    if self.selected_measurements.get("Positive Edges"):
-                        channel_data.append(self.measure.measure_pos_edge_count(i + 1))
-                    if self.selected_measurements.get("Negative Pulses"):
-                        channel_data.append(self.measure.measure_n_pulses(i + 1))
-                    if self.selected_measurements.get("Positive Pulses"):
-                        channel_data.append(self.measure.measure_p_pulses(i + 1))
-                    if self.selected_measurements.get("XMin"):
-                        channel_data.append(self.measure.measure_xmin(i + 1))
-                    if self.selected_measurements.get("XMax"):
-                        channel_data.append(self.measure.measure_xmax(i + 1))
-                    if self.selected_measurements.get("VTop"):
-                        channel_data.append(self.measure.measure_vtop(i + 1))
-                    if self.selected_measurements.get("VBase"):
-                        channel_data.append(self.measure.measure_vbase(i + 1))
-                    if self.selected_measurements.get("VRatio"):
-                        channel_data.append(self.measure.measure_vratio(i + 1))
-                    if self.selected_measurements.get("Phase"):
-                        phase = self.measure.measure_phase(self.selected_channel_1, self.selected_channel_2)
-                        channel_data.append(phase)
-
-                    sheet.append(channel_data)
+            for channel in sorted(self.last_waveforms):
+                channel_data = build_measurement_row(
+                    channel,
+                    self.selected_measurements,
+                    self.last_channel_measurements.get(channel, {}),
+                    self.last_shared_measurements,
+                )
+                sheet.append(channel_data)
 
             workbook.save(excel_path)
             self.console_output.insert(tk.END, f"Measurements saved at {excel_path}\n")

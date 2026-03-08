@@ -26,6 +26,13 @@ from measure import Measure
 from tkinter import filedialog, messagebox
 
 from config import VISA_ADDRESS  # Import global variables
+from waveform_utils import (
+    build_measurement_row,
+    collect_channel_measurements,
+    collect_shared_measurements,
+    get_selected_measurement_headers,
+    write_waveforms_to_csv,
+)
 
 
 class RunScriptPage(tk.Frame):
@@ -177,6 +184,21 @@ class RunScriptPage(tk.Frame):
             save_csv = config['save_options'][2] == 1
             save_excel = config['save_options'][3] == 1
 
+            selected_channels = [
+                index + 1
+                for index, enabled in enumerate(config.get('channels', []))
+                if enabled == 1
+            ]
+            if not selected_channels:
+                self.status_console.insert(tk.END, "No channels selected in the waveform configuration.\n")
+                return
+
+            selected_measurements = config.get('measurements', {})
+            waveforms = {}
+            if save_waveform_plot or save_csv:
+                for channel in selected_channels:
+                    waveforms[channel] = self.oscilloscope.capture_waveform(channel)
+
             # Save Screenshot
             if save_screenshot:
                 screenshot_path = os.path.join(full_save_dir, f"{file_name}_screenshot.png")
@@ -184,9 +206,6 @@ class RunScriptPage(tk.Frame):
                 self.status_console.insert(tk.END, f"Screenshot saved at {screenshot_path}\n")
                 # Plotting and saving Matplotlib waveforms
             if save_waveform_plot:
-                # Assuming that waveforms are obtained from all the waveform data captured
-                active_channels, waveforms = self.oscilloscope.capture_all_waveforms()
-
                 if not waveforms:
                     self.status_console.insert(tk.END, "No waveform data captured.\n")
                     return
@@ -209,24 +228,8 @@ class RunScriptPage(tk.Frame):
             # Save waveform data to CSV file
             if save_csv:
                 csv_path = os.path.join(full_save_dir, f"{file_name}_waveform_data.csv")
-                with open(csv_path, 'w') as f:
-                    f.write("Time (s)")
-                    for i in range(4):
-                        if config['channels'][i] == 1:
-                            f.write(f", Channel {i + 1} Amplitude (V)")
-                    f.write("\n")
-
-                    all_waveforms = []
-                    for i in range(4):
-                        if config['channels'][i] == 1:
-                            time_values, waveform_data = self.oscilloscope.capture_waveform(i + 1)
-                            all_waveforms.append((time_values, waveform_data))
-
-                    for j in range(len(all_waveforms[0][0])):
-                        f.write(f"{all_waveforms[0][0][j]}")
-                        for _, waveform_data in all_waveforms:
-                            f.write(f", {waveform_data[j]}")
-                        f.write("\n")
+                write_waveforms_to_csv(csv_path, waveforms)
+                self.status_console.insert(tk.END, f"Waveform data saved at {csv_path}\n")
 
             # Save measurements to Excel file
             if save_excel:
@@ -235,64 +238,29 @@ class RunScriptPage(tk.Frame):
                 sheet = workbook.active
                 sheet.title = "Measurements"
 
-                headers = ["Channel"] + [key for key, selected in config['measurements'].items() if selected == 1]
+                headers = ["Channel"] + get_selected_measurement_headers(selected_measurements)
                 sheet.append(headers)
 
-                for i in range(4):
-                    if config['channels'][i] == 1:
-                        channel_data = [f"Channel {i + 1}"]
-
-                        if config['measurements'].get("Vpp") == 1:
-                            channel_data.append(self.measure.measure_vpp(i + 1))
-                        if config['measurements'].get("Vmin") == 1:
-                            channel_data.append(self.measure.measure_vmin(i + 1))
-                        if config['measurements'].get("Vmax") == 1:
-                            channel_data.append(self.measure.measure_vmax(i + 1))
-                        if config['measurements'].get("Frequency") == 1:
-                            channel_data.append(self.measure.measure_frequency(i + 1))
-                        if config['measurements'].get("Pulse Width") == 1:
-                            channel_data.append(self.measure.measure_pulse_width(i + 1))
-                        if config['measurements'].get("Fall Time") == 1:
-                            channel_data.append(self.measure.measure_fall_time(i + 1))
-                        if config['measurements'].get("Rise Time") == 1:
-                            channel_data.append(self.measure.measure_rise_time(i + 1))
-                        if config['measurements'].get("Duty Cycle") == 1:
-                            channel_data.append(self.measure.measure_duty_cycle(i + 1))
-                        if config['measurements'].get("RMS Voltage") == 1:
-                            channel_data.append(self.measure.measure_rms_voltage(i + 1))
-                        if config['measurements'].get("Average Voltage") == 1:
-                            channel_data.append(self.measure.measure_average_voltage(i + 1))
-                        if config['measurements'].get("Amplitude") == 1:
-                            channel_data.append(self.measure.measure_amplitude(i + 1))
-                        if config['measurements'].get("Overshoot") == 1:
-                            channel_data.append(self.measure.measure_overshoot(i + 1))
-                        if config['measurements'].get("Preshoot") == 1:
-                            channel_data.append(self.measure.measure_preshoot(i + 1))
-                        if config['measurements'].get("Phase") == 1:
-                            self.selected_channel_1 = 2  # Channel 2 is selected by default
-                            self.selected_channel_2 = 3  # Channel 3 is selected by default
-                            phase = self.measure.measure_phase(self.selected_channel_1, self.selected_channel_2)
-                            channel_data.append(phase)
-                        if config['measurements'].get("Edge Count") == 1:
-                            channel_data.append(self.measure.measure_edge_count(i + 1))
-                        if config['measurements'].get("Positive Edges") == 1:
-                            channel_data.append(self.measure.measure_pos_edge_count(i + 1))
-                        if config['measurements'].get("Negative Pulses") == 1:
-                            channel_data.append(self.measure.measure_n_pulses(i + 1))
-                        if config['measurements'].get("Positive Pulses") == 1:
-                            channel_data.append(self.measure.measure_p_pulses(i + 1))
-                        if config['measurements'].get("XMin") == 1:
-                            channel_data.append(self.measure.measure_xmin(i + 1))
-                        if config['measurements'].get("XMax") == 1:
-                            channel_data.append(self.measure.measure_xmax(i + 1))
-                        if config['measurements'].get("VTop") == 1:
-                            channel_data.append(self.measure.measure_vtop(i + 1))
-                        if config['measurements'].get("VBase") == 1:
-                            channel_data.append(self.measure.measure_vbase(i + 1))
-                        if config['measurements'].get("VRatio") == 1:
-                            channel_data.append(self.measure.measure_vratio(i + 1))
-
-                        sheet.append(channel_data)
+                phase_channels = selected_channels[:2] if len(selected_channels) >= 2 else [1, 2]
+                shared_measurements = collect_shared_measurements(
+                    self.measure,
+                    selected_measurements,
+                    phase_channels[0],
+                    phase_channels[1],
+                )
+                for channel in selected_channels:
+                    channel_measurements = collect_channel_measurements(
+                        self.measure,
+                        selected_measurements,
+                        channel,
+                    )
+                    channel_data = build_measurement_row(
+                        channel,
+                        selected_measurements,
+                        channel_measurements,
+                        shared_measurements,
+                    )
+                    sheet.append(channel_data)
 
                 workbook.save(excel_path)
                 self.status_console.insert(tk.END, f"Measurements saved at {excel_path}\n")
