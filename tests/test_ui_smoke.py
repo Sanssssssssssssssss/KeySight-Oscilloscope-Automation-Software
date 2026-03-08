@@ -135,6 +135,7 @@ class UITests(unittest.TestCase):
         self.assertEqual(int(axis_page.channels_card.grid_info()["row"]), 1)
         self.assertEqual(int(capture_page.right_column.grid_info()["row"]), 1)
         self.assertGreaterEqual(int(home_page.log_card.grid_info()["row"]), 2)
+        self.assertIsNotNone(home_page.hero_card)
 
     def test_dialogs_instantiates(self):
         dialog_root = tk.Toplevel(self.root)
