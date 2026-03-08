@@ -26,6 +26,7 @@ from tkinter import filedialog, messagebox, simpledialog
 from keysight_software import config
 from keysight_software.device.measure import Measure
 from keysight_software.device.oscilloscope import Oscilloscope
+from keysight_software.paths import script_package_config_path
 from keysight_software.ui.theme import (
     COLORS,
     append_text,
@@ -208,7 +209,7 @@ class RunScriptPage(tk.Frame):
 
         try:
             config_directory = os.path.dirname(self.script_path.get())  # Get sequence.json path
-            config_path = os.path.join(config_directory, "waveform_config.json")
+            config_path = script_package_config_path(config_directory, "waveform_config.json")
 
             with open(config_path, 'r', encoding="utf-8") as config_file:
                 config = json.load(config_file)
@@ -336,7 +337,7 @@ class RunScriptPage(tk.Frame):
         try:
             # Use the last selected directory path
             config_directory = os.path.dirname(self.script_path.get())
-            config_path = os.path.join(config_directory, "axis_config.json")
+            config_path = script_package_config_path(config_directory, "axis_config.json")
 
             with open(config_path, 'r', encoding="utf-8") as config_file:
                 config = json.load(config_file)

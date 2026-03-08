@@ -1,7 +1,7 @@
 import tkinter as tk
 import json
 
-from keysight_software.paths import project_path
+from keysight_software.paths import config_path
 from keysight_software.ui.theme import (
     COLORS,
     append_text,
@@ -15,7 +15,7 @@ from keysight_software.ui.theme import (
 )
 
 
-DEFAULT_AXIS_CONFIG = project_path("axis_config.json")
+DEFAULT_AXIS_CONFIG = config_path("axis_config.json")
 RESPONSIVE_BREAKPOINT = 1220
 
 

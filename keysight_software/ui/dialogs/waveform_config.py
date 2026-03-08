@@ -20,7 +20,7 @@ import json
 from pathlib import Path
 from tkinter import filedialog, messagebox
 
-from keysight_software.paths import project_path
+from keysight_software.paths import config_path
 from keysight_software.ui.theme import (
     COLORS,
     create_button,
@@ -32,7 +32,7 @@ from keysight_software.ui.theme import (
 from keysight_software.utils.waveform import get_measurement_names
 
 
-DEFAULT_WAVEFORM_CONFIG = project_path("waveform_config.json")
+DEFAULT_WAVEFORM_CONFIG = config_path("waveform_config.json")
 
 
 class WaveformConfig:

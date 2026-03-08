@@ -27,7 +27,7 @@ from matplotlib.figure import Figure
 from keysight_software.config import VISA_ADDRESS
 from keysight_software.device.measure import Measure
 from keysight_software.device.oscilloscope import Oscilloscope
-from keysight_software.paths import project_path
+from keysight_software.paths import config_path
 from keysight_software.ui.pages import settings
 from keysight_software.ui.theme import (
     COLORS,
@@ -55,7 +55,7 @@ from keysight_software.utils.waveform import (
 )
 
 
-MEASUREMENT_CONFIG_FILE = project_path("measurement_config.json")
+MEASUREMENT_CONFIG_FILE = config_path("measurement_config.json")
 RESPONSIVE_BREAKPOINT = 1260
 
 

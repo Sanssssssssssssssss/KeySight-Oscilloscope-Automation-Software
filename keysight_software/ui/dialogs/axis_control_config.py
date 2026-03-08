@@ -18,7 +18,7 @@ import json
 from pathlib import Path
 from tkinter import messagebox
 
-from keysight_software.paths import project_path
+from keysight_software.paths import config_path
 from keysight_software.ui.theme import (
     COLORS,
     create_button,
@@ -28,7 +28,7 @@ from keysight_software.ui.theme import (
 )
 
 
-DEFAULT_AXIS_CONFIG = project_path("axis_config.json")
+DEFAULT_AXIS_CONFIG = config_path("axis_config.json")
 
 
 class AxisControlConfig:

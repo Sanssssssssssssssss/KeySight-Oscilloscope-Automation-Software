@@ -121,6 +121,7 @@ class UITests(unittest.TestCase):
         self.assertEqual(len(pages), 11)
         self.assertEqual(str(axis_offline.apply_button.cget("state")), tk.DISABLED)
         self.assertEqual(str(capture_offline.capture_button.cget("state")), tk.DISABLED)
+        self.assertGreaterEqual(editor_online.sequence_list.size(), 2)
 
     def test_responsive_pages_reflow(self):
         axis_page = AxisControlPage(self.root, FakeOscilloscope())
