@@ -3,7 +3,8 @@ from pathlib import Path
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 
-ROOT = Path.cwd()
+SPEC_PATH = globals().get("SPEC")
+ROOT = Path(SPEC_PATH).resolve().parent if SPEC_PATH else Path.cwd()
 CONFIGS_DIR = ROOT / "configs"
 
 datas = collect_data_files("keysight_software")
@@ -43,8 +44,11 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
     [],
-    exclude_binaries=True,
+    exclude_binaries=False,
     name="KeysightSoftware",
     debug=False,
     bootloader_ignore_signals=False,
@@ -52,15 +56,4 @@ exe = EXE(
     upx=False,
     console=False,
     disable_windowed_traceback=False,
-)
-
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
-    strip=False,
-    upx=False,
-    upx_exclude=[],
-    name="KeysightSoftware",
 )
