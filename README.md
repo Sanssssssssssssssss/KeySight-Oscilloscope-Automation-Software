@@ -1,60 +1,84 @@
-# KeySight Oscilloscope Automation Software
+# Keysight Automation Studio
 
-## 📌 Project Overview
+Keysight Automation Studio is a Windows desktop application for controlling Keysight oscilloscopes, capturing waveforms, applying bench presets, building scriptable automation flows, and exporting measurement data. The current default client is a Qt-based interface optimized for bench use on Windows.
 
-KeySight Oscilloscope Automation Software is a Python-based automation tool for controlling, acquiring, analyzing, and storing waveform data from KeySight oscilloscopes. It supports USB-connected oscilloscopes and is designed for **data-intensive measurements**, making it ideal for **high-precision signal analysis** and **automated waveform processing**. The software features a user-friendly GUI built with Tkinter and communicates with oscilloscopes via VISA (SCPI). Users can configure measurement processes using a drag-and-drop script editor.
+## What It Does
 
-## 🎯 Features
+- Connects to Keysight oscilloscopes over VISA / SCPI
+- Captures multi-channel waveform data
+- Calculates scalar measurements such as Vpp, frequency, period, rise time, duty cycle, phase, and more
+- Exports screenshots, waveform plots, CSV data, and Excel measurement reports
+- Saves and reuses axis, waveform, and script presets
+- Runs repeatable automation sequences with capture, axis control, and delay steps
+- Merges repeated run outputs with the batch processing page
 
-- **Automated Oscilloscope Control:** Connects to KeySight oscilloscopes via USB using VISA protocol.
-- **Multi-Channel Measurement:** Supports measurements such as:
-  - Peak-to-Peak Voltage (Vpp)
-  - Minimum Voltage (Vmin), Maximum Voltage (Vmax)
-  - Frequency & Period
-  - Pulse Width & Duty Cycle
-  - RMS Voltage & Average Voltage
-  - Rise Time & Fall Time
-  - Edge Count & Pulse Count (Positive/Negative)
-  - Mean Voltage & Standard Deviation
-  - Amplitude, Overshoot & Preshoot
-  - Bandwidth, Bit Rate & Phase Difference
-  - XMin, XMax, VTop, VBase, and VRatio
-- **Waveform Visualization:** Uses Matplotlib for real-time waveform plotting.
-- **Data Export & Storage:** Save measurements in JSON, CSV, Excel, and PNG formats.
-- **Graphical User Interface:** Built with Tkinter for ease of use.
-- **Custom Measurement Configuration:** Drag-and-drop script editor for flexible setup.
-- **Support for Multiple Oscilloscope Models:** Adaptable to various KeySight oscilloscope models.
+## Current App Structure
 
-## 🌄 Home Page
-![image](https://github.com/user-attachments/assets/392d5f0d-a3d0-41fe-8726-0389da0ef552)
+- `main.py`: default Qt entrypoint
+- `main_tk.py`: legacy Tk compatibility entrypoint
+- `keysight_software/qt_app/`: current desktop client
+- `keysight_software/ui/`: legacy Tk client
+- `configs/`: local configuration and preset files
 
-## 🛠 Installation & Usage
-### **2️⃣ Running the Software**
-```bash
-KeysightSoftware.exe
+## Windows Release
+
+The repository includes a packaged Windows build:
+
+- `KeysightSoftware.exe`
+- `_internal/`
+
+To run the packaged app on Windows:
+
+```powershell
+.\KeysightSoftware.exe
 ```
 
-## 📚 Dependencies
-This project relies on the following libraries:
-- `pyvisa` - Communicates with oscilloscopes via SCPI commands
-- `tkinter` - Provides the GUI interface
-- `matplotlib` - For waveform visualization
-- `openpyxl` - For Excel data export
-- `numpy` - For numerical calculations
-- `json` - For saving and loading configurations
+## Local Development
 
-## 🏗 Contributing
-Contributions are welcome! If you find bugs or have feature suggestions, feel free to open an issue or submit a pull request.
+Create and activate the virtual environment, then install dependencies:
 
-### **Steps to Contribute:**
-1. Fork the repository 🍴
-2. Create a new branch 🛠
-3. Make your changes and commit 📌
-4. Push to your fork 🔄
-5. Submit a pull request 🚀
+```powershell
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+```
 
-## 📩 Contact
-For any inquiries, reach out to **[cyhx2333@163.com]** or open an issue in this repository.
+Run the default Qt client:
 
+```powershell
+python .\main.py
+```
 
+Run the legacy Tk client:
 
+```powershell
+python .\main_tk.py
+```
+
+## Packaging
+
+This project is currently packaged for Windows with PyInstaller:
+
+```powershell
+python -m PyInstaller build.spec --noconfirm --clean
+```
+
+The generated Windows release bundle is intended for Windows only.
+
+## Dependencies
+
+- `PySide6`
+- `PyVISA`
+- `numpy`
+- `matplotlib`
+- `openpyxl`
+- `pandas`
+- `Pillow`
+
+Notes:
+
+- `tkinter` is only needed for the legacy client and is provided by the Python installation.
+- Live instrument communication also requires a system VISA runtime such as NI-VISA or Keysight IO Libraries.
+
+## Project Description
+
+This project is aimed at oscilloscope automation workflows where engineers need a single desktop tool for instrument connection, waveform acquisition, preset management, automated script execution, and export of measurement results. It is designed for Windows bench environments and prioritizes repeatability, offline-safe editing, and practical operator workflows over generic demo UI patterns.
