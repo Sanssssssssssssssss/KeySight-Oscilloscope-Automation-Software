@@ -3,7 +3,7 @@ from pathlib import Path
 
 
 if getattr(sys, "frozen", False):
-    PROJECT_ROOT = Path(sys.executable).resolve().parent
+    PROJECT_ROOT = Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent))
 else:
     PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
