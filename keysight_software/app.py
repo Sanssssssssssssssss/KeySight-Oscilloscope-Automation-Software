@@ -2,7 +2,7 @@ import os
 import sys
 from pathlib import Path
 
-from keysight_software.paths import project_path
+from keysight_software.paths import bundled_path
 
 
 class Application:
@@ -17,9 +17,9 @@ class Application:
 
 def configure_tk_runtime():
     """Point Tkinter at a Tcl/Tk runtime that matches the active Python."""
-    bundled_root = project_path("_internal")
-    bundled_tcl = project_path("_internal", "_tcl_data")
-    bundled_tk = project_path("_internal", "_tk_data")
+    bundled_root = bundled_path("_internal")
+    bundled_tcl = bundled_path("_internal", "_tcl_data")
+    bundled_tk = bundled_path("_internal", "_tk_data")
     base_prefix = getattr(sys, "base_prefix", sys.prefix)
     system_tcl = Path(base_prefix) / "tcl" / "tcl8.6"
     system_tk = Path(base_prefix) / "tcl" / "tk8.6"

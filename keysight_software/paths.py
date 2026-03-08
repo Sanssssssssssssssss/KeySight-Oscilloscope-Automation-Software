@@ -1,17 +1,25 @@
+import shutil
 import sys
 from pathlib import Path
 
 
 if getattr(sys, "frozen", False):
-    PROJECT_ROOT = Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent))
+    BUNDLE_ROOT = Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent))
+    PROJECT_ROOT = Path(sys.executable).resolve().parent
 else:
-    PROJECT_ROOT = Path(__file__).resolve().parent.parent
+    BUNDLE_ROOT = Path(__file__).resolve().parent.parent
+    PROJECT_ROOT = BUNDLE_ROOT
 
 CONFIGS_DIR = PROJECT_ROOT / "configs"
+BUNDLED_CONFIGS_DIR = BUNDLE_ROOT / "configs"
 
 
 def project_path(*parts):
     return PROJECT_ROOT.joinpath(*parts)
+
+
+def bundled_path(*parts):
+    return BUNDLE_ROOT.joinpath(*parts)
 
 
 def ensure_configs_dir():
@@ -21,11 +29,16 @@ def ensure_configs_dir():
 
 def config_path(filename):
     ensure_configs_dir()
-    new_path = CONFIGS_DIR / filename
+    writable_path = CONFIGS_DIR / filename
     legacy_path = PROJECT_ROOT / filename
-    if legacy_path.exists() and not new_path.exists():
-        legacy_path.replace(new_path)
-    return new_path
+    bundled_config = BUNDLED_CONFIGS_DIR / filename
+
+    if legacy_path.exists() and not writable_path.exists():
+        legacy_path.replace(writable_path)
+    elif bundled_config.exists() and not writable_path.exists():
+        shutil.copy2(bundled_config, writable_path)
+
+    return writable_path
 
 
 def script_package_config_path(package_dir, filename):
