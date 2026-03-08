@@ -35,6 +35,7 @@ class MainWindow(QMainWindow):
         self.nav_buttons: dict[str, QPushButton] = {}
         self.page_titles: dict[str, tuple[str, str]] = {}
         self.page_indexes: dict[str, int] = {}
+        self.page_widgets: dict[str, QWidget] = {}
         self.runner_page: RunScriptPage | None = None
         self.setWindowTitle("Keysight Automation Studio")
         self.resize(1490, 920)
@@ -204,7 +205,19 @@ class MainWindow(QMainWindow):
 
     def add_page(self, key: str, title: str, subtitle: str, widget: QWidget):
         self.page_titles[key] = (title, subtitle)
-        self.page_indexes[key] = self.pages.addWidget(widget)
+        self.page_widgets[key] = widget
+
+        wrapper = QWidget()
+        wrapper_layout = QHBoxLayout(wrapper)
+        wrapper_layout.setContentsMargins(0, 0, 0, 0)
+        wrapper_layout.setSpacing(0)
+        wrapper_layout.addStretch(1)
+        widget.setMaximumWidth(1200)
+        widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        wrapper_layout.addWidget(widget, 0, Qt.AlignTop)
+        wrapper_layout.addStretch(1)
+
+        self.page_indexes[key] = self.pages.addWidget(wrapper)
 
     def show_page(self, key: str):
         self.pages.setCurrentIndex(self.page_indexes[key])
@@ -234,8 +247,7 @@ class MainWindow(QMainWindow):
             self.status_hint.setText("Bench ready")
         else:
             self.status_hint.setText("Offline mode available")
-        for index in range(self.pages.count()):
-            widget = self.pages.widget(index)
+        for widget in self.page_widgets.values():
             if hasattr(widget, "refresh_status"):
                 widget.refresh_status()
 
