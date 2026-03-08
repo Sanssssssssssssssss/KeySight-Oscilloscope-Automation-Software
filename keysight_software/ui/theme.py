@@ -20,13 +20,13 @@ COLORS = {
 }
 
 FONTS = {
-    "hero": ("SF Pro Display", 24, "bold"),
-    "title": ("SF Pro Display", 18, "bold"),
-    "heading": ("SF Pro Display", 14, "bold"),
-    "body": ("SF Pro Text", 11),
-    "body_bold": ("SF Pro Text", 11, "bold"),
-    "caption": ("SF Pro Text", 10),
-    "mono": ("Consolas", 10),
+    "hero": ("Segoe UI", 24, "bold"),
+    "title": ("Segoe UI", 18, "bold"),
+    "heading": ("Segoe UI", 13, "bold"),
+    "body": ("Segoe UI", 10),
+    "body_bold": ("Segoe UI", 10, "bold"),
+    "caption": ("Segoe UI", 9),
+    "mono": ("Cascadia Code", 10),
 }
 
 
@@ -142,8 +142,8 @@ def create_button(parent, text, command, tone="secondary", width=None):
         activeforeground=fg,
         relief="flat",
         bd=0,
-        padx=16,
-        pady=10,
+        padx=14,
+        pady=8,
         cursor="hand2",
         font=FONTS["body_bold"],
         highlightthickness=0,
@@ -246,8 +246,8 @@ def create_badge(parent, text, tone="neutral"):
         bg=bg,
         fg=fg,
         font=FONTS["caption"],
-        padx=10,
-        pady=5,
+        padx=9,
+        pady=4,
     )
 
 
