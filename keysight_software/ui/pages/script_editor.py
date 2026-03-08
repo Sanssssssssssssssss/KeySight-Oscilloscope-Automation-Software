@@ -20,14 +20,14 @@ import os
 import time
 from tkinter import Toplevel, filedialog, messagebox
 
-from keysight_software.config import VISA_ADDRESS
+from keysight_software import config
 from keysight_software.device.measure import Measure
 from keysight_software.device.oscilloscope import Oscilloscope
 from keysight_software.paths import project_path
 from keysight_software.ui.dialogs.axis_control_config import AxisControlConfig
 from keysight_software.ui.dialogs.waveform_config import WaveformConfig
 from keysight_software.ui.pages.run_script import RunScriptPage
-from keysight_software.ui.theme import COLORS, create_button, create_label, style_toplevel
+from keysight_software.ui.theme import COLORS, create_badge, create_button, create_label, style_toplevel
 
 
 CONFIGURATIONS_FILE = project_path("configurations.json")
@@ -36,12 +36,30 @@ DEFAULT_AXIS_CONFIG = project_path("axis_config.json")
 
 
 class ScriptEditor(tk.Frame):
-    def __init__(self, master=None):
+    def __init__(self, master=None, oscilloscope=None, measure=None, auto_connect=False):
         """Initialize the ScriptEditor UI, set up the canvas, slots, and buttons for creating, saving, and running scripts."""
-        super().__init__(master)
+        super().__init__(master, bg=COLORS["background"])
         self.master = master
-        self.configure(bg=COLORS["background"])
         self.grid(sticky=tk.NSEW)
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=1)
+        self.oscilloscope = oscilloscope
+        self.measure = measure
+        self.connection_error = None
+
+        header = tk.Frame(self, bg=COLORS["background"])
+        header.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+        create_label(header, "Scope status", muted=True).pack(side="left")
+        self.connection_badge = create_badge(header, "Checking", tone="neutral")
+        self.connection_badge.pack(side="left", padx=(10, 0))
+        self.connection_hint = create_label(
+            header,
+            "You can compose and save scripts offline; live execution uses the shared scope connection.",
+            muted=True,
+            wraplength=640,
+            justify="left",
+        )
+        self.connection_hint.pack(side="left", padx=(12, 0))
 
         self.canvas = tk.Canvas(
             self,
@@ -51,7 +69,7 @@ class ScriptEditor(tk.Frame):
             highlightthickness=1,
             highlightbackground=COLORS["border"],
         )
-        self.canvas.grid(row=0, column=0, pady=10, sticky=tk.NSEW)
+        self.canvas.grid(row=1, column=0, pady=10, sticky=tk.NSEW)
 
         self.console = tk.Text(
             self,
@@ -65,18 +83,8 @@ class ScriptEditor(tk.Frame):
             highlightbackground=COLORS["border"],
             font=("Consolas", 10),
         )
-        self.console.grid(row=1, column=0, sticky=tk.NSEW)
+        self.console.grid(row=2, column=0, sticky=tk.NSEW)
         self.save_directory = tk.StringVar(value="")
-
-        # Attempt to initialize the WaveformCapture instance
-        try:
-            osc = Oscilloscope(VISA_ADDRESS, 10000)
-            measure = Measure(osc)
-            self.oscilloscope = osc
-            self.measure = measure
-            messagebox.showinfo("Connection Status", "Successfully connected to the oscilloscope.")
-        except Exception as e:
-            messagebox.showerror("Connection Failed", f"Could not connect to the oscilloscope: {e}")
 
         # Define slots
         self.slots = []
@@ -107,7 +115,7 @@ class ScriptEditor(tk.Frame):
 
         # Buttons for saving, loading, and running scripts
         btn_frame = tk.Frame(self, bg=COLORS["background"])
-        btn_frame.grid(row=2, column=0, pady=14, sticky="w")
+        btn_frame.grid(row=3, column=0, pady=14, sticky="w")
 
         create_button(btn_frame, "Save Script", self.save_script, tone="primary").grid(row=0, column=0, padx=(0, 10))
         create_button(btn_frame, "Load Script", self.load_script, tone="secondary").grid(row=0, column=1, padx=(0, 10))
@@ -117,21 +125,42 @@ class ScriptEditor(tk.Frame):
         self.save_path_label = create_label(btn_frame, "Save Path: None", muted=True)
         self.save_path_label.grid(row=0, column=3, padx=12, pady=5)
 
-        # Adjust window weights for proper resizing
-        self.master.grid_rowconfigure(0, weight=1)
-        self.master.grid_rowconfigure(1, weight=1)
-        self.master.grid_columnconfigure(0, weight=1)
-        self.master.bind("<Configure>", self.on_resize)
-        # Configure weights for resizing
-        self.master.grid_rowconfigure(0, weight=1)
-        self.master.grid_rowconfigure(1, weight=0)  # Ensure that the Console is not squeezed by the Canvas
-        self.master.grid_columnconfigure(0, weight=1)
+        self.bind("<Configure>", self.on_resize)
+
+        if self.oscilloscope is None and auto_connect:
+            self.initialize_connection()
+        else:
+            self.update_connection_state()
+
+    def initialize_connection(self):
+        try:
+            self.oscilloscope = Oscilloscope(config.VISA_ADDRESS, config.GLOBAL_TIMEOUT)
+            self.measure = Measure(self.oscilloscope)
+            self.connection_error = None
+        except Exception as error:
+            self.oscilloscope = None
+            self.measure = None
+            self.connection_error = str(error)
+        self.update_connection_state()
+
+    def update_connection_state(self):
+        if self.oscilloscope and self.measure:
+            self.connection_badge.configure(text="Connected", bg="#e7f6ec", fg=COLORS["success"])
+            self.connection_hint.configure(text="Shared oscilloscope connection is available for script execution.")
+        else:
+            self.connection_badge.configure(text="Offline", bg="#fff5e6", fg=COLORS["warning"])
+            if self.connection_error:
+                self.connection_hint.configure(text=f"Instrument unavailable: {self.connection_error}")
+            else:
+                self.connection_hint.configure(
+                    text="No shared oscilloscope connection is available. Editing remains available."
+                )
 
     def on_resize(self, event):
         """Adjust the width of the canvas when the window is resized, ensuring slots remain positioned correctly."""
-        self.canvas.config(width=event.width)  # Only the width of the Canvas is adjusted, not the height.
-        self.update_slots_position(event.width)  # Adjusting the position of the module slot
-        # Do not adjust the width of the Console
+        if event.widget is self:
+            self.canvas.config(width=event.width)
+            self.update_slots_position(event.width)
 
     def update_slots_position(self, canvas_width):
         """Recalculate and update the position of slots dynamically based on the canvas width."""
@@ -391,7 +420,7 @@ class ScriptEditor(tk.Frame):
             # Construct the path for the 'sequence.json' file
             script_filepath = os.path.join(directory, "sequence.json")
             if os.path.exists(script_filepath):
-                with open(script_filepath, 'r') as f:
+                with open(script_filepath, 'r', encoding="utf-8") as f:
                     script_data = json.load(f)
 
                 # Clear the canvas and reset the module list and slots
@@ -446,14 +475,13 @@ class ScriptEditor(tk.Frame):
         script_window.geometry("800x600")  # Set the size of the new window
 
         # Initialize the RunScriptPage in the new window
-        run_page = RunScriptPage(script_window)
+        run_page = RunScriptPage(script_window, self.oscilloscope, self.measure)
         run_page.script_path.set(script_filepath)  # Set the script path to the loaded file
         run_page.load_script(script_filepath)  # Load the script in the RunScriptPage
 
         # Optionally, you can set the focus to the new window
         script_window.grab_set()
         script_window.transient(self.master)
-        script_window.mainloop()
 
     def get_module_by_id(self, canvas_id):
         """Returns the module dictionary given its canvas ID."""
@@ -493,5 +521,5 @@ class ScriptEditor(tk.Frame):
 if __name__ == "__main__":
     root = tk.Tk()
     root.geometry("1000x750")
-    app = ScriptEditor(master=root)
+    app = ScriptEditor(master=root, auto_connect=True)
     root.mainloop()

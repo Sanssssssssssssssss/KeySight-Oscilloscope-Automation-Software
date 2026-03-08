@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import messagebox
 
-from keysight_software.config import VISA_ADDRESS
+from keysight_software import config
 from keysight_software.device.measure import Measure
 from keysight_software.device.oscilloscope import Oscilloscope
 from keysight_software.ui.pages.axis_control import AxisControlPage
@@ -11,7 +11,7 @@ from keysight_software.ui.pages.run_script import RunScriptPage
 from keysight_software.ui.pages.script_editor import ScriptEditor
 from keysight_software.ui.pages.settings import Setting
 from keysight_software.ui.pages.waveform_capture import WaveformCapture
-from keysight_software.ui.theme import COLORS, FONTS, configure_root
+from keysight_software.ui.theme import COLORS, FONTS, configure_root, create_button
 
 
 class MainGUI:
@@ -21,16 +21,19 @@ class MainGUI:
         self.nav_buttons = {}
         self.oscilloscope = None
         self.measure = None
+        self.current_page_factory = None
+        self.last_connection_error = None
 
         configure_root(master)
         master.title("Keysight Automation Studio")
-        master.geometry("1440x920")
-        master.minsize(1200, 780)
+        master.geometry("1380x900")
+        master.minsize(980, 680)
         master.grid_columnconfigure(1, weight=1)
         master.grid_rowconfigure(0, weight=1)
+        master.bind("<Configure>", self.on_window_resize)
 
         self.build_shell()
-        self.initialize_connection()
+        self.refresh_connection(show_dialog=False)
         self.show_home()
 
     def build_shell(self):
@@ -145,23 +148,55 @@ class MainGUI:
             font=FONTS["body_bold"],
         )
         self.connection_label.pack(anchor="w", pady=(4, 0))
+        self.connection_hint = tk.Label(
+            status_card,
+            text="You can work offline and reconnect later.",
+            bg=COLORS["surface"],
+            fg=COLORS["text_muted"],
+            font=FONTS["caption"],
+        )
+        self.connection_hint.pack(anchor="w", pady=(4, 0))
+        create_button(status_card, "Reconnect", lambda: self.refresh_connection(show_dialog=True), tone="secondary").pack(
+            anchor="e", pady=(10, 0)
+        )
 
         self.display_frame = tk.Frame(self.content_shell, bg=COLORS["background"], padx=32, pady=0)
         self.display_frame.grid(row=1, column=0, sticky="nsew")
         self.display_frame.grid_columnconfigure(0, weight=1)
         self.display_frame.grid_rowconfigure(0, weight=1)
 
-    def initialize_connection(self):
+    def on_window_resize(self, event):
+        if event.widget is not self.master:
+            return
+        compact = event.width < 1120
+        self.sidebar.configure(width=220 if compact else 260)
+        self.page_subtitle.configure(wraplength=max(360, event.width - 680))
+
+    def refresh_connection(self, show_dialog=False):
         try:
-            self.oscilloscope = Oscilloscope(VISA_ADDRESS, 10000)
+            if self.oscilloscope is not None:
+                try:
+                    self.oscilloscope.close()
+                except Exception:
+                    pass
+            self.oscilloscope = Oscilloscope(config.VISA_ADDRESS, config.GLOBAL_TIMEOUT)
             self.measure = Measure(self.oscilloscope)
+            self.last_connection_error = None
             self.set_connection_status("Connected to oscilloscope", COLORS["success"])
-            messagebox.showinfo("Connection Status", "Successfully connected to the oscilloscope.")
+            self.connection_hint.configure(text="Live instrument detected. Measurement pages are fully enabled.")
+            if show_dialog:
+                messagebox.showinfo("Connection Status", "Successfully connected to the oscilloscope.")
         except Exception as error:
             self.oscilloscope = None
             self.measure = None
-            self.set_connection_status("Disconnected", COLORS["danger"])
-            messagebox.showerror("Connection Failed", f"Could not connect to the oscilloscope: {error}")
+            self.last_connection_error = str(error)
+            self.set_connection_status("Disconnected", COLORS["warning"])
+            self.connection_hint.configure(text="Offline mode is active. Live capture controls will stay disabled.")
+            if show_dialog:
+                messagebox.showwarning("Connection Unavailable", f"Could not connect to the oscilloscope: {error}")
+
+        if self.current_page_factory is not None:
+            self.current_page_factory()
 
     def set_connection_status(self, text, color):
         self.connection_label.configure(text=text, fg=color)
@@ -187,13 +222,19 @@ class MainGUI:
 
     def show_home(self):
         self.current_page = "home"
+        self.current_page_factory = self.show_home
         self.update_nav_state()
         self.set_page_context("Connection setup, workspace defaults and live instrument discovery.")
         self.clear_display_frame()
-        ConfigHome(self.display_frame)
+        ConfigHome(
+            self.display_frame,
+            connect_callback=lambda show_dialog=True: self.refresh_connection(show_dialog=show_dialog),
+            connection_error=self.last_connection_error,
+        )
 
     def show_axis_control(self):
         self.current_page = "axis"
+        self.current_page_factory = self.show_axis_control
         self.update_nav_state()
         self.set_page_context("Dial in timebase, channel scaling and markers with a cleaner control surface.")
         self.clear_display_frame()
@@ -201,6 +242,7 @@ class MainGUI:
 
     def show_waveform_capture(self):
         self.current_page = "capture"
+        self.current_page_factory = self.show_waveform_capture
         self.update_nav_state()
         self.set_page_context("Capture waveforms, inspect measurements and export results with fewer clicks.")
         self.clear_display_frame()
@@ -208,20 +250,23 @@ class MainGUI:
 
     def show_script_editor(self):
         self.current_page = "script"
+        self.current_page_factory = self.show_script_editor
         self.update_nav_state()
         self.set_page_context("Build repeatable automation flows with a more structured visual editor.")
         self.clear_display_frame()
-        ScriptEditor(self.display_frame)
+        ScriptEditor(self.display_frame, self.oscilloscope, self.measure)
 
     def show_run_script(self):
         self.current_page = "runner"
+        self.current_page_factory = self.show_run_script
         self.update_nav_state()
         self.set_page_context("Load saved sequences and monitor execution status in real time.")
         self.clear_display_frame()
-        RunScriptPage(self.display_frame)
+        RunScriptPage(self.display_frame, self.oscilloscope, self.measure)
 
     def show_batch_process(self):
         self.current_page = "batch"
+        self.current_page_factory = self.show_batch_process
         self.update_nav_state()
         self.set_page_context("Merge repeated measurement runs into a clean consolidated output package.")
         self.clear_display_frame()
@@ -229,6 +274,7 @@ class MainGUI:
 
     def show_settings(self):
         self.current_page = "settings"
+        self.current_page_factory = self.show_settings
         self.update_nav_state()
         self.set_page_context("Control default save locations and workspace preferences.")
         self.clear_display_frame()

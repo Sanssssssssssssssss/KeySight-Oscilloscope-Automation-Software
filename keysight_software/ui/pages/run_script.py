@@ -16,21 +16,24 @@ and axis control.
 
 import json
 import os
+import time
 
 import openpyxl
 import tkinter as tk
 from matplotlib import pyplot as plt
 from tkinter import filedialog, messagebox, simpledialog
 
-from keysight_software.config import VISA_ADDRESS
+from keysight_software import config
 from keysight_software.device.measure import Measure
 from keysight_software.device.oscilloscope import Oscilloscope
 from keysight_software.ui.theme import (
     COLORS,
     append_text,
+    create_badge,
     create_button,
     create_card,
     create_entry,
+    create_label,
     create_scrolled_text,
     create_section_heading,
 )
@@ -44,26 +47,22 @@ from keysight_software.utils.waveform import (
 
 
 class RunScriptPage(tk.Frame):
-    def __init__(self, master=None):
-        super().__init__(master)
+    def __init__(self, master=None, oscilloscope=None, measure=None, auto_connect=False):
+        super().__init__(master, bg=COLORS["background"])
         self.master = master
         self.grid(sticky=tk.NSEW)
-        self.script_path = tk.StringVar(value="")  # Variable to store the script path
-        # Attempt to initialize the oscilloscope
-        try:
-            self.oscilloscope = Oscilloscope(VISA_ADDRESS, 10000)
-            self.measure = Measure(self.oscilloscope)
-            messagebox.showinfo("Connection Status", "Successfully connected to the oscilloscope.")
-        except Exception as e:
-            messagebox.showerror("Connection Failed", f"Could not connect to the oscilloscope: {e}")
-            self.oscilloscope = None
-            self.measure = None
+        self.script_path = tk.StringVar(value="")
+        self.oscilloscope = oscilloscope
+        self.measure = measure
+        self.connection_error = None
 
-        # Create UI elements
         self.create_widgets()
+        if self.oscilloscope is None and auto_connect:
+            self.initialize_connection()
+        else:
+            self.update_connection_state()
 
     def create_widgets(self):
-        self.configure(bg=COLORS["background"])
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
         self.grid_rowconfigure(2, weight=1)
@@ -76,10 +75,23 @@ class RunScriptPage(tk.Frame):
             "Script runner",
             "Pick a saved automation sequence, preview the module order and execute it against the instrument.",
         ).grid(row=0, column=0, sticky="w")
+        status_row = tk.Frame(picker, bg=picker.cget("bg"))
+        status_row.grid(row=1, column=0, sticky="w", pady=(16, 0))
+        create_label(status_row, "Scope status", muted=True).pack(side="left")
+        self.connection_badge = create_badge(status_row, "Checking", tone="neutral")
+        self.connection_badge.pack(side="left", padx=(10, 0))
+        self.connection_hint = create_label(
+            picker,
+            "Runner can load and inspect scripts even when the instrument is offline.",
+            muted=True,
+            wraplength=640,
+            justify="left",
+        )
+        self.connection_hint.grid(row=2, column=0, sticky="w", pady=(8, 0))
         self.path_entry = create_entry(picker, textvariable=self.script_path)
-        self.path_entry.grid(row=1, column=0, sticky="ew", pady=(16, 0), ipady=10)
+        self.path_entry.grid(row=3, column=0, sticky="ew", pady=(16, 0), ipady=10)
         action_row = tk.Frame(picker, bg=picker.cget("bg"))
-        action_row.grid(row=2, column=0, sticky="w", pady=(16, 0))
+        action_row.grid(row=4, column=0, sticky="w", pady=(16, 0))
         create_button(action_row, "Browse Script Folder", self.browse_script, tone="secondary").pack(
             side="left", padx=(0, 10)
         )
@@ -101,6 +113,30 @@ class RunScriptPage(tk.Frame):
         self.status_console = create_scrolled_text(status, height=12, mono=True)
         self.status_console.grid(row=1, column=0, sticky="nsew", pady=(16, 0))
 
+    def initialize_connection(self):
+        try:
+            self.oscilloscope = Oscilloscope(config.VISA_ADDRESS, config.GLOBAL_TIMEOUT)
+            self.measure = Measure(self.oscilloscope)
+            self.connection_error = None
+        except Exception as error:
+            self.oscilloscope = None
+            self.measure = None
+            self.connection_error = str(error)
+        self.update_connection_state()
+
+    def update_connection_state(self):
+        if self.oscilloscope and self.measure:
+            self.connection_badge.configure(text="Connected", bg="#e7f6ec", fg=COLORS["success"])
+            self.connection_hint.configure(text="Live instrument detected. Script modules can execute against the scope.")
+        else:
+            self.connection_badge.configure(text="Offline", bg="#fff5e6", fg=COLORS["warning"])
+            if self.connection_error:
+                self.connection_hint.configure(text=f"Instrument unavailable: {self.connection_error}")
+            else:
+                self.connection_hint.configure(
+                    text="No shared oscilloscope connection is available. Live modules will be skipped."
+                )
+
     def browse_script(self):
         """Browse and select the folder containing the script to run"""
         directory = filedialog.askdirectory()
@@ -117,7 +153,7 @@ class RunScriptPage(tk.Frame):
         """Load and display script content"""
         self.script_console.delete(1.0, tk.END)
         try:
-            with open(filepath, 'r') as f:
+            with open(filepath, 'r', encoding="utf-8") as f:
                 script_data = json.load(f)
                 for i, module in enumerate(script_data.get("modules", [])):
                     append_text(self.script_console, f"{i + 1}. {module['type']}\n")
@@ -134,7 +170,7 @@ class RunScriptPage(tk.Frame):
             return
 
         try:
-            with open(script_filepath, 'r') as f:
+            with open(script_filepath, 'r', encoding="utf-8") as f:
                 script_data = json.load(f)
 
             for module in script_data.get("modules", []):
@@ -146,7 +182,7 @@ class RunScriptPage(tk.Frame):
                     delay_time = module.get("delay", 1.0)
                     append_text(self.status_console, f"Waiting for {delay_time} seconds...\n")
                     self.status_console.update()
-                    self.master.after(int(delay_time * 1000))
+                    time.sleep(delay_time)
 
                 elif module_type == "Wave Cap":
                     append_text(self.status_console, "Executing Waveform Capture...\n")
@@ -174,7 +210,7 @@ class RunScriptPage(tk.Frame):
             config_directory = os.path.dirname(self.script_path.get())  # Get sequence.json path
             config_path = os.path.join(config_directory, "waveform_config.json")
 
-            with open(config_path, 'r') as config_file:
+            with open(config_path, 'r', encoding="utf-8") as config_file:
                 config = json.load(config_file)
 
             # Get the save path and file name
@@ -302,7 +338,7 @@ class RunScriptPage(tk.Frame):
             config_directory = os.path.dirname(self.script_path.get())
             config_path = os.path.join(config_directory, "axis_config.json")
 
-            with open(config_path, 'r') as config_file:
+            with open(config_path, 'r', encoding="utf-8") as config_file:
                 config = json.load(config_file)
 
             # Set timebase settings
@@ -343,5 +379,5 @@ class RunScriptPage(tk.Frame):
 if __name__ == "__main__":
     root = tk.Tk()
     root.geometry("1000x750")
-    app = RunScriptPage(master=root)
+    app = RunScriptPage(master=root, auto_connect=True)
     root.mainloop()

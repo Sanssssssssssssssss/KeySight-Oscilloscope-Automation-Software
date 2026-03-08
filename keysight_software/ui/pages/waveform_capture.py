@@ -32,6 +32,7 @@ from keysight_software.ui.pages import settings
 from keysight_software.ui.theme import (
     COLORS,
     append_text,
+    create_badge,
     create_button,
     create_card,
     create_checkbutton,
@@ -55,23 +56,25 @@ from keysight_software.utils.waveform import (
 
 
 MEASUREMENT_CONFIG_FILE = project_path("measurement_config.json")
+RESPONSIVE_BREAKPOINT = 1260
 
 
 class WaveformCapture:
     def __init__(self, master, oscilloscope, measure):
-        '''nitializes the waveform capture GUI, establishes a connection with the oscilloscope, and loads previous settings.'''
+        """Build the waveform capture UI and gracefully degrade when no scope is attached."""
         self.master = master
         self.frame = tk.Frame(master, bg=COLORS["background"])
         self.frame.grid(row=0, column=0, sticky="nsew")
         self.frame.grid_columnconfigure(0, weight=2)
         self.frame.grid_columnconfigure(1, weight=1)
         self.frame.grid_rowconfigure(1, weight=1)
+        self.frame.bind("<Configure>", self.on_resize)
         self.osc = oscilloscope
         self.measure = measure
-        self.is_connected = self.check_connection()  # Add this line
+        self.is_connected = self.check_connection()
         self.measurement_vars = [tk.StringVar(value="") for _ in range(4)]
-        self.save_directory = settings.get_save_directory()  # Using paths in setting
-        self.selected_measurements = {}  # For saving the user's measurement selections
+        self.save_directory = settings.get_save_directory()
+        self.selected_measurements = {}
         self.last_waveforms = {}
         self.last_channel_measurements = {}
         self.last_shared_measurements = {}
@@ -91,14 +94,17 @@ class WaveformCapture:
                 self.selected_channel_1 = config.get("selected_channel_1", 1)
                 self.selected_channel_2 = config.get("selected_channel_2", 2)
         except FileNotFoundError:
-            # If the file does not exist, use the default value
             self.selected_measurements = {}
             self.selected_channel_1 = 1
             self.selected_channel_2 = 2
 
+        self.refresh_connection_state(log_message=False)
+        self.update_save_state()
+        self.update_responsive_layout()
+
     def build_layout(self):
-        plot_card, plot_inner = create_card(self.frame, padding=26)
-        plot_card.grid(row=0, column=0, rowspan=2, sticky="nsew", padx=(0, 10))
+        self.plot_card, plot_inner = create_card(self.frame, padding=26)
+        self.plot_card.grid(row=0, column=0, rowspan=2, sticky="nsew", padx=(0, 10))
         plot_inner.grid_columnconfigure(0, weight=1)
         plot_inner.grid_rowconfigure(1, weight=1)
 
@@ -112,13 +118,13 @@ class WaveformCapture:
         self.canvas = FigureCanvasTkAgg(self.figure, master=canvas_holder)
         self.canvas.get_tk_widget().pack(fill="both", expand=True)
 
-        right_column = tk.Frame(self.frame, bg=COLORS["background"])
-        right_column.grid(row=0, column=1, rowspan=2, sticky="nsew")
-        right_column.grid_columnconfigure(0, weight=1)
-        right_column.grid_rowconfigure(2, weight=1)
-        right_column.grid_rowconfigure(3, weight=1)
+        self.right_column = tk.Frame(self.frame, bg=COLORS["background"])
+        self.right_column.grid(row=0, column=1, rowspan=2, sticky="nsew")
+        self.right_column.grid_columnconfigure(0, weight=1)
+        self.right_column.grid_rowconfigure(2, weight=1)
+        self.right_column.grid_rowconfigure(3, weight=1)
 
-        control_card, control_inner = create_card(right_column, padding=24)
+        control_card, control_inner = create_card(self.right_column, padding=24)
         control_card.grid(row=0, column=0, sticky="ew", pady=(0, 12))
         control_inner.grid_columnconfigure(0, weight=1)
         create_section_heading(
@@ -127,15 +133,29 @@ class WaveformCapture:
             "Choose active channels and measurement presets before triggering a new acquisition.",
         ).grid(row=0, column=0, sticky="w")
 
+        status_row = tk.Frame(control_inner, bg=control_inner.cget("bg"))
+        status_row.grid(row=1, column=0, sticky="ew", pady=(14, 0))
+        create_label(status_row, "Scope status", muted=True).pack(side="left")
+        self.connection_badge = create_badge(status_row, "Checking", tone="neutral")
+        self.connection_badge.pack(side="left", padx=(10, 0))
+        self.connection_hint = create_label(
+            control_inner,
+            "Detecting instrument availability.",
+            muted=True,
+            wraplength=280,
+            justify="left",
+        )
+        self.connection_hint.grid(row=2, column=0, sticky="w", pady=(8, 0))
+
         self.channel_vars = [tk.IntVar() for _ in range(4)]
         channel_row = tk.Frame(control_inner, bg=control_inner.cget("bg"))
-        channel_row.grid(row=1, column=0, sticky="ew", pady=(16, 0))
+        channel_row.grid(row=3, column=0, sticky="ew", pady=(16, 0))
         for i in range(4):
             cb = create_checkbutton(channel_row, f"Channel {i + 1}", self.channel_vars[i])
             cb.pack(anchor="w")
 
         action_row = tk.Frame(control_inner, bg=control_inner.cget("bg"))
-        action_row.grid(row=2, column=0, sticky="w", pady=(18, 0))
+        action_row.grid(row=4, column=0, sticky="w", pady=(18, 0))
         self.capture_button = create_button(action_row, "Capture Waveform", self.capture_waveform, tone="primary")
         self.capture_button.pack(side="left", padx=(0, 10))
         create_button(
@@ -144,9 +164,8 @@ class WaveformCapture:
             self.open_measurement_selection_window,
             tone="secondary",
         ).pack(side="left")
-        self.capture_button.config(state=tk.DISABLED if not self.is_connected else tk.NORMAL)
 
-        export_card, export_inner = create_card(right_column, padding=24)
+        export_card, export_inner = create_card(self.right_column, padding=24)
         export_card.grid(row=1, column=0, sticky="ew", pady=(0, 12))
         export_inner.grid_columnconfigure(0, weight=1)
         create_section_heading(
@@ -169,11 +188,12 @@ class WaveformCapture:
         self.filename_entry = create_entry(name_field)
         self.filename_entry.grid(row=1, column=0, sticky="ew", pady=(8, 0), ipady=10)
 
-        create_button(export_inner, "Save Data", self.save_data, tone="primary").grid(
+        self.save_button = create_button(export_inner, "Save Data", self.save_data, tone="primary")
+        self.save_button.grid(
             row=6, column=0, sticky="w", pady=(18, 0)
         )
 
-        measurement_card, measurement_inner = create_card(right_column, padding=24)
+        measurement_card, measurement_inner = create_card(self.right_column, padding=24)
         measurement_card.grid(row=2, column=0, sticky="nsew", pady=(0, 12))
         measurement_inner.grid_columnconfigure(0, weight=1)
         measurement_inner.grid_rowconfigure(1, weight=1)
@@ -185,7 +205,7 @@ class WaveformCapture:
         self.console_output = create_scrolled_text(measurement_inner, height=12, mono=True)
         self.console_output.grid(row=1, column=0, sticky="nsew", pady=(16, 0))
 
-        coord_card, coord_inner = create_card(right_column, padding=24)
+        coord_card, coord_inner = create_card(self.right_column, padding=24)
         coord_card.grid(row=3, column=0, sticky="nsew")
         coord_inner.grid_columnconfigure(0, weight=1)
         coord_inner.grid_rowconfigure(1, weight=1)
@@ -291,24 +311,65 @@ class WaveformCapture:
         self.selection_window.destroy()  # Close the child window after saving
 
     def check_connection(self):
-        '''Checks whether the oscilloscope is properly connected.'''
+        """Check whether the oscilloscope is properly connected."""
+        if self.osc is None:
+            return False
         try:
             self.osc.get_active_channels()
             return True
-        except Exception as e:
+        except Exception:
             return False
 
+    def on_resize(self, event):
+        if event.widget is self.frame:
+            self.update_responsive_layout(event.width)
+
+    def update_responsive_layout(self, width=None):
+        width = width or self.frame.winfo_width()
+        stacked = bool(width and width < RESPONSIVE_BREAKPOINT)
+        if stacked:
+            self.frame.grid_columnconfigure(0, weight=1)
+            self.frame.grid_columnconfigure(1, weight=0)
+            self.plot_card.grid_configure(row=0, column=0, rowspan=1, padx=0, pady=(0, 12))
+            self.right_column.grid_configure(row=1, column=0, rowspan=1)
+        else:
+            self.frame.grid_columnconfigure(0, weight=2)
+            self.frame.grid_columnconfigure(1, weight=1)
+            self.plot_card.grid_configure(row=0, column=0, rowspan=2, padx=(0, 10), pady=0)
+            self.right_column.grid_configure(row=0, column=1, rowspan=2)
+
+    def refresh_connection_state(self, log_message=True):
+        self.is_connected = self.check_connection()
+        if self.is_connected:
+            self.connection_badge.configure(text="Connected", bg="#e7f6ec", fg=COLORS["success"])
+            self.connection_hint.configure(
+                text="Live acquisition is available. Active channels were detected from the scope."
+            )
+            if log_message:
+                append_text(self.console_output, "Oscilloscope detected. Capture controls enabled.\n")
+        else:
+            self.connection_badge.configure(text="Offline", bg="#fff5e6", fg=COLORS["warning"])
+            self.connection_hint.configure(
+                text="No oscilloscope connection detected. You can still review settings and export prior results."
+            )
+            if log_message:
+                append_text(self.console_output, "Oscilloscope is offline. Live capture is disabled.\n")
+        self.capture_button.configure(state=tk.NORMAL if self.is_connected else tk.DISABLED)
+        self.update_save_state()
+
     def on_mouse_move(self, event):
-        '''Displays cursor coordinates in real-time when the mouse moves over the waveform plot.'''
+        """Display cursor coordinates in real time while moving over the waveform plot."""
         if event.inaxes:  # Make sure the mouse is in the drawing area
             x_data = event.xdata
             y_data = event.ydata
             append_text(self.coordinate_output, f"X: {x_data:.5f}, Y: {y_data:.5f}\n")
 
     def detect_active_channels(self):
-        '''Automatically detects and selects active oscilloscope channels.'''
+        """Automatically detect and select active oscilloscope channels."""
         if not self.is_connected:
-            return  # Exit if not connected to the oscilloscope
+            for var in self.channel_vars:
+                var.set(0)
+            return
 
         active_channels = self.osc.get_active_channels()
         for i in range(4):
@@ -317,13 +378,17 @@ class WaveformCapture:
             else:
                 self.channel_vars[i].set(0)
 
+    def update_save_state(self):
+        can_save = bool(self.last_waveforms)
+        self.save_button.configure(state=tk.NORMAL if can_save else tk.DISABLED)
+
     def get_selected_channels(self):
         return [index + 1 for index, var in enumerate(self.channel_vars) if var.get() == 1]
 
     def capture_waveform(self):
-        '''Captures waveform data from selected channels and displays the results.'''
+        """Capture waveform data from selected channels and display the results."""
         if not self.is_connected:
-            messagebox.showerror("Error", "Oscilloscope is not connected. Cannot capture waveform.")
+            append_text(self.console_output, "Capture skipped because the oscilloscope is not connected.\n")
             return
 
         selected_channels = self.get_selected_channels()
@@ -364,10 +429,10 @@ class WaveformCapture:
         self.last_shared_measurements = shared_measurements
         self.console_output.see(tk.END)
         self.osc.plot_all_waveforms(waveforms, self.ax, self.canvas)
+        self.update_save_state()
 
     def save_data(self):
-        '''Saves captured waveform data in different formats (screenshot, CSV, Excel).'''
-        # Get the file name entered by the user
+        """Save captured waveform data in different formats."""
         file_name = self.filename_entry.get()
         if not file_name:
             messagebox.showwarning("Invalid File Name", "Please enter a valid file name.")
@@ -377,17 +442,14 @@ class WaveformCapture:
             messagebox.showwarning("No Waveform Data", "Capture waveform data before saving.")
             return
 
-        # Use setting.SAVE_DIRECTORY as the default path
         save_dir = self.save_directory
         if not save_dir:
             save_dir = filedialog.askdirectory(title="Select Directory to Save Data")
         if not save_dir:
             return
 
-        # Create a subdirectory with the filename as the subdirectory name
         full_save_dir = os.path.join(save_dir, file_name)
 
-        # Checks if the folder exists and asks if it is overwritten if it exists
         if os.path.exists(full_save_dir):
             result = messagebox.askyesno("File Exists",
                                          "A folder with this name already exists. Do you want to overwrite it?")
@@ -396,19 +458,19 @@ class WaveformCapture:
 
         os.makedirs(full_save_dir, exist_ok=True)
 
-        # Save Screenshot
         if self.save_options[0].get():
-            screenshot_path = os.path.join(full_save_dir, f"{file_name}_screenshot.png")
-            self.osc.capture_screenshot(screenshot_path)
-            append_text(self.console_output, f"Screenshot saved at {screenshot_path}\n")
+            if self.is_connected and self.osc is not None:
+                screenshot_path = os.path.join(full_save_dir, f"{file_name}_screenshot.png")
+                self.osc.capture_screenshot(screenshot_path)
+                append_text(self.console_output, f"Screenshot saved at {screenshot_path}\n")
+            else:
+                append_text(self.console_output, "Skipped screenshot export because the oscilloscope is offline.\n")
 
-        # Saving Matplotlib Waveforms
         if self.save_options[1].get():
             figure_path = os.path.join(full_save_dir, f"{file_name}_waveform_plot.png")
             self.figure.savefig(figure_path)
             append_text(self.console_output, f"Waveform plot saved at {figure_path}\n")
 
-        # Save CSV file
         if self.save_options[2].get():
             csv_path = os.path.join(full_save_dir, f"{file_name}_waveform_data.csv")
             write_waveforms_to_csv(csv_path, self.last_waveforms)
@@ -420,11 +482,9 @@ class WaveformCapture:
             sheet = workbook.active
             sheet.title = "Measurements"
 
-            # Write the title according to the selected measurement
             headers = ["Channel"] + get_selected_measurement_headers(self.selected_measurements)
             sheet.append(headers)
 
-            # Write data for each channel
             for channel in sorted(self.last_waveforms):
                 channel_data = build_measurement_row(
                     channel,

@@ -56,6 +56,9 @@ class FakeOscilloscope:
     def add_marker_y2(self, value):
         return value
 
+    def close(self):
+        return None
+
 
 class FakeMeasure:
     def measure_phase(self, channel_1, channel_2):
@@ -83,22 +86,49 @@ class UITests(unittest.TestCase):
         self.root.destroy()
 
     def test_main_window_instantiates(self):
-        with mock.patch.object(MainGUI, "initialize_connection", lambda self: None):
+        with mock.patch.object(MainGUI, "refresh_connection", lambda self, show_dialog=False: None):
             gui = MainGUI(self.root)
         self.assertIsNotNone(gui.display_frame)
         self.assertGreaterEqual(len(gui.nav_buttons), 1)
 
     def test_primary_pages_instantiates(self):
+        axis_online = AxisControlPage(self.root, FakeOscilloscope())
+        axis_offline = AxisControlPage(self.root, None)
+        runner_online = RunScriptPage(self.root, FakeOscilloscope(), FakeMeasure())
+        runner_offline = RunScriptPage(self.root)
+        editor_online = ScriptEditor(self.root, FakeOscilloscope(), FakeMeasure())
+        editor_offline = ScriptEditor(self.root)
+        capture_online = WaveformCapture(self.root, FakeOscilloscope(), FakeMeasure())
+        capture_offline = WaveformCapture(self.root, None, None)
         pages = [
             ConfigHome(self.root),
             Setting(self.root),
             BatchProcessPage(self.root),
-            AxisControlPage(self.root, FakeOscilloscope()),
-            RunScriptPage(self.root),
-            ScriptEditor(self.root),
-            WaveformCapture(self.root, FakeOscilloscope(), FakeMeasure()),
+            axis_online,
+            axis_offline,
+            runner_online,
+            runner_offline,
+            editor_online,
+            editor_offline,
+            capture_online,
+            capture_offline,
         ]
-        self.assertEqual(len(pages), 7)
+        self.assertEqual(len(pages), 11)
+        self.assertEqual(str(axis_offline.apply_button.cget("state")), tk.DISABLED)
+        self.assertEqual(str(capture_offline.capture_button.cget("state")), tk.DISABLED)
+
+    def test_responsive_pages_reflow(self):
+        axis_page = AxisControlPage(self.root, FakeOscilloscope())
+        capture_page = WaveformCapture(self.root, FakeOscilloscope(), FakeMeasure())
+        home_page = ConfigHome(self.root)
+
+        axis_page.update_responsive_layout(900)
+        capture_page.update_responsive_layout(1000)
+        home_page.on_resize(None)
+
+        self.assertEqual(int(axis_page.channels_card.grid_info()["row"]), 1)
+        self.assertEqual(int(capture_page.right_column.grid_info()["row"]), 1)
+        self.assertGreaterEqual(int(home_page.log_card.grid_info()["row"]), 2)
 
     def test_dialogs_instantiates(self):
         dialog_root = tk.Toplevel(self.root)

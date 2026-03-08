@@ -1,10 +1,11 @@
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog
 
 from keysight_software import config
 from keysight_software.ui.theme import (
     COLORS,
     append_text,
+    create_badge,
     create_button,
     create_card,
     create_entry,
@@ -20,12 +21,15 @@ except ImportError:  # pragma: no cover - optional at import time
 
 
 class ConfigHome(tk.Frame):
-    def __init__(self, master):
+    def __init__(self, master, connect_callback=None, connection_error=None):
         super().__init__(master, bg=COLORS["background"])
+        self.connect_callback = connect_callback
+        self.connection_error = connection_error
         self.grid(row=0, column=0, sticky="nsew")
         self.grid_columnconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(2, weight=1)
+        self.bind("<Configure>", self.on_resize)
 
         self.build_overview()
         self.build_forms()
@@ -43,6 +47,14 @@ class ConfigHome(tk.Frame):
             "Start with connection defaults, confirm the VISA endpoint, then save a clean workspace baseline.",
         ).grid(row=0, column=0, columnspan=3, sticky="w")
 
+        status_row = tk.Frame(inner, bg=inner.cget("bg"))
+        status_row.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(18, 0))
+        create_label(status_row, "Connection status", muted=True).pack(side="left")
+        tone = "warning" if self.connection_error else "success"
+        text = "Offline mode" if self.connection_error else "Ready"
+        self.connection_badge = create_badge(status_row, text, tone=tone)
+        self.connection_badge.pack(side="left", padx=(10, 0))
+
         stats = [
             ("Default VISA", config.VISA_ADDRESS),
             ("Timeout", f"{config.GLOBAL_TIMEOUT} ms"),
@@ -50,15 +62,15 @@ class ConfigHome(tk.Frame):
         ]
         for column, (label, value) in enumerate(stats):
             stat = tk.Frame(inner, bg=COLORS["surface_alt"], padx=16, pady=16)
-            stat.grid(row=1, column=column, sticky="ew", padx=(0, 12 if column < 2 else 0), pady=(20, 0))
+            stat.grid(row=2, column=column, sticky="ew", padx=(0, 12 if column < 2 else 0), pady=(18, 0))
             create_label(stat, label, muted=True).pack(anchor="w")
             create_label(stat, value, font=("SF Pro Text", 11, "bold"), wraplength=240, justify="left").pack(
                 anchor="w", pady=(8, 0)
             )
 
     def build_forms(self):
-        instrument_card, instrument = create_card(self, padding=28)
-        instrument_card.grid(row=1, column=0, sticky="nsew", padx=(0, 9), pady=(0, 18))
+        self.instrument_card, instrument = create_card(self, padding=28)
+        self.instrument_card.grid(row=1, column=0, sticky="nsew", padx=(0, 9), pady=(0, 18))
         instrument.grid_columnconfigure(0, weight=1)
 
         create_section_heading(
@@ -77,8 +89,8 @@ class ConfigHome(tk.Frame):
         )
         create_button(action_row, "Connect", self.connect_visa, tone="primary").pack(side="left")
 
-        storage_card, storage = create_card(self, padding=28)
-        storage_card.grid(row=1, column=1, sticky="nsew", padx=(9, 0), pady=(0, 18))
+        self.storage_card, storage = create_card(self, padding=28)
+        self.storage_card.grid(row=1, column=1, sticky="nsew", padx=(9, 0), pady=(0, 18))
         storage.grid_columnconfigure(0, weight=1)
 
         create_section_heading(
@@ -99,8 +111,8 @@ class ConfigHome(tk.Frame):
         create_button(save_row, "Save Configuration", self.save_config, tone="primary").pack(side="left")
 
     def build_log(self):
-        log_card, log = create_card(self, padding=28)
-        log_card.grid(row=2, column=0, columnspan=2, sticky="nsew")
+        self.log_card, log = create_card(self, padding=28)
+        self.log_card.grid(row=2, column=0, columnspan=2, sticky="nsew")
         log.grid_columnconfigure(0, weight=1)
         log.grid_rowconfigure(1, weight=1)
 
@@ -123,11 +135,33 @@ class ConfigHome(tk.Frame):
         entry.insert(0, value)
         return entry
 
+    def on_resize(self, _event):
+        width = self.winfo_width()
+        if width and width < 1180:
+            self.instrument_card.grid_configure(row=1, column=0, columnspan=2, padx=0)
+            self.storage_card.grid_configure(row=2, column=0, columnspan=2, padx=0)
+            self.log_card.grid_configure(row=3, column=0, columnspan=2)
+        else:
+            self.instrument_card.grid_configure(row=1, column=0, columnspan=1, padx=(0, 9))
+            self.storage_card.grid_configure(row=1, column=1, columnspan=1, padx=(9, 0))
+            self.log_card.grid_configure(row=2, column=0, columnspan=2)
+
+    def set_connection_badge(self, text, tone):
+        self.connection_badge.configure(text=text)
+        palette = {
+            "success": ("#e7f6ec", COLORS["success"]),
+            "warning": ("#fff5e6", COLORS["warning"]),
+            "danger": ("#fff1f2", COLORS["danger"]),
+        }
+        bg, fg = palette[tone]
+        self.connection_badge.configure(bg=bg, fg=fg)
+
     def log_message(self, message):
         append_text(self.log_output, message + "\n")
 
     def try_auto_detect_visa_address(self):
         if pyvisa is None:
+            self.set_connection_badge("Manual setup", "warning")
             self.log_message("pyvisa is not installed. Please enter the VISA address manually.")
             return
         try:
@@ -136,28 +170,49 @@ class ConfigHome(tk.Frame):
             if resources:
                 self.visa_entry.delete(0, tk.END)
                 self.visa_entry.insert(0, resources[0])
+                self.set_connection_badge("Device found", "success")
                 self.log_message(f"Found VISA address: {resources[0]}")
             else:
+                self.set_connection_badge("No device found", "warning")
                 self.log_message("No devices found. Please enter the VISA address manually.")
         except Exception as error:
+            self.set_connection_badge("Auto detect failed", "warning")
             self.log_message(f"Auto detection failed: {error}")
 
     def detect_visa_address(self):
         self.try_auto_detect_visa_address()
 
     def connect_visa(self):
-        if pyvisa is None:
-            messagebox.showerror("Connection Failed", "pyvisa is not installed in the current Python environment.")
+        try:
+            timeout = int(self.timeout_entry.get())
+        except ValueError:
+            self.set_connection_badge("Invalid timeout", "danger")
+            self.log_message("Timeout must be an integer value in milliseconds.")
             return
+
+        config.update_visa_address(self.visa_entry.get().strip())
+        config.update_global_timeout(timeout)
+
+        if pyvisa is None:
+            self.set_connection_badge("Manual setup", "warning")
+            self.log_message("pyvisa is not installed in the current Python environment.")
+            return
+
         try:
             rm = pyvisa.ResourceManager()
-            scope = rm.open_resource(self.visa_entry.get())
+            scope = rm.open_resource(config.VISA_ADDRESS)
+            scope.timeout = timeout
+            self.set_connection_badge("Connected", "success")
             self.log_message(f"Connected to: {scope.query('*IDN?').strip()}")
             scope.close()
+            if self.connect_callback is not None:
+                self.connect_callback(show_dialog=False)
         except pyvisa.errors.VisaIOError as error:
-            messagebox.showerror("Connection Failed", f"Could not connect to the oscilloscope: {error}")
+            self.set_connection_badge("Connection failed", "warning")
+            self.log_message(f"Could not connect to the oscilloscope: {error}")
         except Exception as error:
-            messagebox.showerror("Connection Failed", f"An unexpected error occurred: {error}")
+            self.set_connection_badge("Connection failed", "warning")
+            self.log_message(f"An unexpected error occurred: {error}")
 
     def browse_directory(self):
         directory = filedialog.askdirectory()
@@ -166,8 +221,15 @@ class ConfigHome(tk.Frame):
             self.directory_entry.insert(0, directory)
 
     def save_config(self):
-        config.update_visa_address(self.visa_entry.get())
-        config.update_global_timeout(int(self.timeout_entry.get()))
+        try:
+            timeout = int(self.timeout_entry.get())
+        except ValueError:
+            self.set_connection_badge("Invalid timeout", "danger")
+            self.log_message("Timeout must be an integer value in milliseconds.")
+            return
+
+        config.update_visa_address(self.visa_entry.get().strip())
+        config.update_global_timeout(timeout)
         config.update_base_directory(self.directory_entry.get())
         config.update_base_filename(self.filename_entry.get())
 
