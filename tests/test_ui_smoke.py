@@ -89,7 +89,12 @@ class UITests(unittest.TestCase):
         with mock.patch.object(MainGUI, "refresh_connection", lambda self, show_dialog=False: None):
             gui = MainGUI(self.root)
         self.assertIsNotNone(gui.display_frame)
+        self.assertIsNotNone(gui.scroll_canvas)
+        self.assertIsNotNone(gui.page_container)
         self.assertGreaterEqual(len(gui.nav_buttons), 1)
+        event = mock.Mock(widget=self.root, width=1200)
+        gui.on_window_resize(event)
+        self.assertEqual(int(gui.status_card.grid_info()["row"]), 1)
 
     def test_primary_pages_instantiates(self):
         axis_online = AxisControlPage(self.root, FakeOscilloscope())
