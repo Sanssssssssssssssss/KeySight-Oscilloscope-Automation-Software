@@ -28,6 +28,10 @@ from keysight_software.qt_app.state import AppState
 from keysight_software.qt_app.styles import APP_STYLESHEET
 
 
+PAGE_CONTENT_MAX_WIDTH = 1120
+PAGE_CONTENT_MIN_WIDTH = 760
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -121,6 +125,7 @@ class MainWindow(QMainWindow):
             SettingsPage(),
         )
         self.show_page("home")
+        self.update_page_widths()
 
     def build_sidebar(self):
         sidebar = QFrame()
@@ -212,8 +217,7 @@ class MainWindow(QMainWindow):
         wrapper_layout.setContentsMargins(0, 0, 0, 0)
         wrapper_layout.setSpacing(0)
         wrapper_layout.addStretch(1)
-        widget.setMaximumWidth(1200)
-        widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        widget.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
         wrapper_layout.addWidget(widget, 0, Qt.AlignTop)
         wrapper_layout.addStretch(1)
 
@@ -251,6 +255,13 @@ class MainWindow(QMainWindow):
             if hasattr(widget, "refresh_status"):
                 widget.refresh_status()
 
+    def update_page_widths(self):
+        viewport_width = self.scroll_area.viewport().width()
+        available_width = max(viewport_width - 32, PAGE_CONTENT_MIN_WIDTH)
+        target_width = min(PAGE_CONTENT_MAX_WIDTH, available_width)
+        for widget in self.page_widgets.values():
+            widget.setFixedWidth(target_width)
+
     def reconnect_scope(self):
         self.state.connect_scope(config.VISA_ADDRESS, config.GLOBAL_TIMEOUT)
 
@@ -262,3 +273,8 @@ class MainWindow(QMainWindow):
     def closeEvent(self, event):
         self.state.close_scope()
         super().closeEvent(event)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, "scroll_area"):
+            self.update_page_widths()
