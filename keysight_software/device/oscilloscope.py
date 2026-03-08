@@ -13,18 +13,24 @@ marker placement, and configuration adjustments.
 ===================================================
 """
 
-import pyvisa
-import numpy as np
-import matplotlib.pyplot as plt
-import time
 import io
+
+import numpy as np
 from PIL import Image
-from measure import Measure
+
+from keysight_software.device.measure import Measure
+
+try:
+    import pyvisa
+except ImportError:  # pragma: no cover - optional at import time
+    pyvisa = None
 
 
 class Oscilloscope:
     def __init__(self, visa_address, timeout=20000):
         """Initialize the oscilloscope connection."""
+        if pyvisa is None:
+            raise ImportError("pyvisa is required to connect to the oscilloscope.")
         self.rm = pyvisa.ResourceManager()
         self.visa_address = visa_address
         self.scope = self.rm.open_resource(self.visa_address)
@@ -77,7 +83,7 @@ class Oscilloscope:
         """Activate a specific channel."""
         self.scope.write(f":CHANnel{channel}:DISPlay ON")
 
-    def capture_screenshot(self, filename="screenshot.png"):
+    def capture_screenshot(self, filename="screenshot.png", show_image=False):
         """Capture a screenshot of the oscilloscope display and save it as a PNG file."""
         # Send command to acquire screenshot data
         self.scope.write(":DISPlay:DATA? PNG, COLOR")
@@ -108,9 +114,9 @@ class Oscilloscope:
             f.write(image_data)
         print(f"Screenshot saved as {filename}")
 
-        # Display the image
-        img = Image.open(io.BytesIO(image_data))
-        img.show()
+        if show_image:
+            img = Image.open(io.BytesIO(image_data))
+            img.show()
 
     def capture_waveform(self, channel=1):
         """Capture waveform data from the specified channel."""
@@ -159,7 +165,8 @@ class Oscilloscope:
         ax.grid(True)
         ax.legend(loc="best")
 
-        canvas.draw()
+        if canvas is not None:
+            canvas.draw()
 
     def plot_all_waveforms(self, waveforms, ax, canvas):
         """Plot waveforms from all active channels."""
@@ -175,7 +182,8 @@ class Oscilloscope:
         ax.grid(True)
         ax.legend(loc="best")
 
-        canvas.draw()
+        if canvas is not None:
+            canvas.draw()
 
     def set_timebase_scale(self, scale):
         """Set the timebase scale (seconds per division)."""
@@ -236,3 +244,4 @@ class Oscilloscope:
     def close(self):
         """Close the oscilloscope connection."""
         self.scope.close()
+        self.rm.close()
