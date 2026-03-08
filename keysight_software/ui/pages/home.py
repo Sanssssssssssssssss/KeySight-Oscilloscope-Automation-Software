@@ -60,7 +60,7 @@ class ConfigHome(tk.Frame):
         badge_row = tk.Frame(self.hero_content, bg=COLORS["surface"])
         badge_row.grid(row=0, column=0, sticky="w", pady=(22, 0))
         create_badge(badge_row, "Bench dashboard", tone="accent").pack(side="left")
-        create_badge(badge_row, "Frontend-style preview", tone="neutral").pack(side="left", padx=(10, 0))
+        create_badge(badge_row, "Compact layout", tone="neutral").pack(side="left", padx=(10, 0))
 
         create_label(
             self.hero_content,
@@ -71,7 +71,7 @@ class ConfigHome(tk.Frame):
         ).grid(row=1, column=0, sticky="w", pady=(18, 0))
         create_label(
             self.hero_content,
-            "The goal here is not to look like stock Tk. This screen behaves more like a compact dashboard: stronger headline, denser controls, clearer metrics, and less dead vertical space.",
+            "This screen prioritizes clearer hierarchy, denser controls, stronger metrics, and less dead vertical space so the page feels closer to a polished product dashboard.",
             muted=True,
             wraplength=640,
             justify="left",
@@ -107,7 +107,7 @@ class ConfigHome(tk.Frame):
 
         self.hero_footer = create_label(
             self.hero_content,
-            "Try this page first. If this direction feels right, the same visual language can be rolled out across Waveform Capture, Axis Control, and Script Editor.",
+            "If this direction feels right, the same visual language can be rolled out across Waveform Capture, Axis Control, and Script Editor.",
             muted=True,
             wraplength=640,
             justify="left",
@@ -192,7 +192,7 @@ class ConfigHome(tk.Frame):
         create_section_heading(
             control,
             "Control center",
-            "A denser, front-end-like configuration surface: fewer stacked rows, more paired inputs, and clearer action clusters.",
+            "A denser configuration surface with fewer stacked rows, more paired inputs, and clearer action clusters.",
         ).grid(row=0, column=0, columnspan=2, sticky="w")
 
         instrument_shell = tk.Frame(control, bg=control.cget("bg"))

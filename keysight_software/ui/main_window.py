@@ -25,6 +25,7 @@ class MainGUI:
         self.last_connection_error = None
         self.page_window_id = None
         self.mousewheel_bound = False
+        self.connection_hint_text = "Offline mode available."
 
         configure_root(master)
         master.title("Keysight Automation Studio")
@@ -111,7 +112,7 @@ class MainGUI:
         self.content_shell.grid_rowconfigure(1, weight=1)
         self.content_shell.grid_columnconfigure(0, weight=1)
 
-        self.header = tk.Frame(self.content_shell, bg=COLORS["background"], padx=32, pady=24)
+        self.header = tk.Frame(self.content_shell, bg=COLORS["background"], padx=32, pady=16)
         self.header.grid(row=0, column=0, sticky="ew")
         self.header.grid_columnconfigure(0, weight=1)
 
@@ -134,7 +135,7 @@ class MainGUI:
         )
         self.page_subtitle.pack(anchor="w", pady=(6, 0))
 
-        self.status_card = tk.Frame(self.header, bg=COLORS["surface"], bd=1, relief="solid", padx=16, pady=14)
+        self.status_card = tk.Frame(self.header, bg=COLORS["surface"], bd=1, relief="solid", padx=12, pady=8)
         self.status_card.grid(row=0, column=1, sticky="e")
         self.status_card.grid_columnconfigure(0, weight=1)
 
@@ -149,22 +150,20 @@ class MainGUI:
         ).pack(side="left")
         self.connection_label = create_badge(top_row, "Checking", tone="neutral")
         self.connection_label.pack(side="left", padx=(10, 0))
+        self.connection_hint = tk.Label(
+            top_row,
+            text=self.connection_hint_text,
+            bg=COLORS["surface"],
+            fg=COLORS["text_muted"],
+            font=FONTS["caption"],
+        )
+        self.connection_hint.pack(side="left", padx=(10, 0))
         create_button(
             top_row,
             "Reconnect",
             lambda: self.refresh_connection(show_dialog=True),
             tone="secondary",
         ).pack(side="right")
-        self.connection_hint = tk.Label(
-            self.status_card,
-            text="You can work offline and reconnect later.",
-            bg=COLORS["surface"],
-            fg=COLORS["text_muted"],
-            font=FONTS["caption"],
-            justify="left",
-            wraplength=280,
-        )
-        self.connection_hint.grid(row=1, column=0, sticky="w", pady=(10, 0))
 
         self.display_frame = tk.Frame(self.content_shell, bg=COLORS["background"], padx=32, pady=0)
         self.display_frame.grid(row=1, column=0, sticky="nsew")
@@ -207,12 +206,12 @@ class MainGUI:
         header_stacked = event.width < 1380
         if header_stacked:
             self.header.grid_columnconfigure(1, weight=0)
-            self.status_card.grid_configure(row=1, column=0, sticky="ew", pady=(16, 0))
+            self.status_card.grid_configure(row=1, column=0, sticky="w", pady=(10, 0))
         else:
             self.header.grid_columnconfigure(1, weight=0)
             self.status_card.grid_configure(row=0, column=1, sticky="e", pady=0)
         self.page_subtitle.configure(wraplength=max(360, event.width - 760))
-        self.connection_hint.configure(wraplength=240 if header_stacked else 280)
+        self.connection_hint.configure(text="" if event.width < 1180 else self.connection_hint_text)
 
     def on_page_container_configure(self, _event):
         self.scroll_canvas.configure(scrollregion=self.scroll_canvas.bbox("all"))
@@ -255,16 +254,18 @@ class MainGUI:
             self.oscilloscope = Oscilloscope(config.VISA_ADDRESS, config.GLOBAL_TIMEOUT)
             self.measure = Measure(self.oscilloscope)
             self.last_connection_error = None
+            self.connection_hint_text = "Live instrument detected."
             self.set_connection_status("Connected to oscilloscope", COLORS["success"])
-            self.connection_hint.configure(text="Live instrument detected. Measurement pages are fully enabled.")
+            self.connection_hint.configure(text=self.connection_hint_text if self.master.winfo_width() >= 1180 else "")
             if show_dialog:
                 messagebox.showinfo("Connection Status", "Successfully connected to the oscilloscope.")
         except Exception as error:
             self.oscilloscope = None
             self.measure = None
             self.last_connection_error = str(error)
+            self.connection_hint_text = "Offline mode available."
             self.set_connection_status("Disconnected", COLORS["warning"])
-            self.connection_hint.configure(text="Offline mode is active. Live capture controls will stay disabled.")
+            self.connection_hint.configure(text=self.connection_hint_text if self.master.winfo_width() >= 1180 else "")
             if show_dialog:
                 messagebox.showwarning("Connection Unavailable", f"Could not connect to the oscilloscope: {error}")
 
