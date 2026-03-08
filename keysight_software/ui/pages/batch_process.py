@@ -14,11 +14,12 @@ and final report generation for Keysight oscilloscope data.
 """
 
 
-import os
-import tkinter as tk
-from tkinter import filedialog, scrolledtext, messagebox
 import shutil
+
+import os
 import pandas as pd
+import tkinter as tk
+from tkinter import filedialog, messagebox, scrolledtext
 
 
 class BatchProcessPage:

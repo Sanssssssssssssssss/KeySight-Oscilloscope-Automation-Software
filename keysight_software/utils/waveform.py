@@ -1,6 +1,4 @@
-"""
-Utilities for waveform measurements and export helpers.
-"""
+"""Utilities for waveform measurements and export helpers."""
 
 import csv
 from collections import OrderedDict

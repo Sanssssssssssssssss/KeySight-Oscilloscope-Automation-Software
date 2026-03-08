@@ -15,16 +15,17 @@ execute scripts, and process batch data.
 
 import tkinter as tk
 from tkinter import messagebox
-from config_home import ConfigHome
-from config import VISA_ADDRESS  # Import global variable
-from waveform_capture import WaveformCapture
-from setting import Setting
-from oscilloscope import Oscilloscope
-from measure import Measure
-from batch_process import BatchProcessPage
-from AxisControlWindow import AxisControlPage
-from ScriptEditor import ScriptEditor
-from run_script_page import RunScriptPage
+
+from keysight_software.config import VISA_ADDRESS
+from keysight_software.device.measure import Measure
+from keysight_software.device.oscilloscope import Oscilloscope
+from keysight_software.ui.pages.axis_control import AxisControlPage
+from keysight_software.ui.pages.batch_process import BatchProcessPage
+from keysight_software.ui.pages.home import ConfigHome
+from keysight_software.ui.pages.run_script import RunScriptPage
+from keysight_software.ui.pages.script_editor import ScriptEditor
+from keysight_software.ui.pages.settings import Setting
+from keysight_software.ui.pages.waveform_capture import WaveformCapture
 
 
 class MainGUI:

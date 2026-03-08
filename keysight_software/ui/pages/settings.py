@@ -19,6 +19,11 @@ import os
 import tkinter as tk
 from tkinter import filedialog, messagebox
 
+from keysight_software.paths import project_path
+
+
+CONFIG_FILE = project_path("config.txt")
+
 
 class Setting:
     """
@@ -62,7 +67,7 @@ class Setting:
             os.makedirs(selected_directory)  # Create directory if it does not exist
 
         # Save directory path to a config file
-        with open('config.txt', 'w') as config_file:
+        with open(CONFIG_FILE, 'w', encoding="utf-8") as config_file:
             config_file.write(f"SAVE_DIRECTORY={selected_directory}\n")
 
         messagebox.showinfo("Settings", "Settings saved successfully!")
@@ -70,7 +75,7 @@ class Setting:
     def load_settings(self):
         """Load previously saved settings from the configuration file."""
         try:
-            with open('config.txt', 'r') as config_file:
+            with open(CONFIG_FILE, 'r', encoding="utf-8") as config_file:
                 for line in config_file:
                     if line.startswith("SAVE_DIRECTORY="):
                         directory = line.split("=")[1].strip()
@@ -83,7 +88,7 @@ class Setting:
 def get_save_directory():
     """Retrieve the currently set save directory from the configuration file."""
     try:
-        with open('config.txt', 'r') as config_file:
+        with open(CONFIG_FILE, 'r', encoding="utf-8") as config_file:
             for line in config_file:
                 if line.startswith("SAVE_DIRECTORY="):
                     return line.split("=")[1].strip()

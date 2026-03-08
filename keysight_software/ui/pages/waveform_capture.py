@@ -15,20 +15,22 @@ and data storage in multiple formats.
 """
 
 import os
-import tkinter as tk
 import json
+import tkinter as tk
 from tkinter import ttk
 from tkinter import scrolledtext
+from tkinter import filedialog, messagebox
+
+import openpyxl  # Importing the openpyxl module to work with Excel files
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
-from oscilloscope import Oscilloscope
-from measure import Measure
-import setting  # Import the setting module
-from tkinter import filedialog, messagebox
-import openpyxl  # Importing the openpyxl module to work with Excel files
 
-from config import VISA_ADDRESS  # Importing global variables
-from waveform_utils import (
+from keysight_software.config import VISA_ADDRESS
+from keysight_software.device.measure import Measure
+from keysight_software.device.oscilloscope import Oscilloscope
+from keysight_software.paths import project_path
+from keysight_software.ui.pages import settings
+from keysight_software.utils.waveform import (
     build_measurement_row,
     collect_channel_measurements,
     collect_shared_measurements,
@@ -40,6 +42,9 @@ from waveform_utils import (
 )
 
 
+MEASUREMENT_CONFIG_FILE = project_path("measurement_config.json")
+
+
 class WaveformCapture:
     def __init__(self, master, oscilloscope, measure):
         '''nitializes the waveform capture GUI, establishes a connection with the oscilloscope, and loads previous settings.'''
@@ -48,7 +53,7 @@ class WaveformCapture:
         self.measure = measure
         self.is_connected = self.check_connection()  # Add this line
         self.measurement_vars = [tk.StringVar(value="") for _ in range(4)]
-        self.save_directory = setting.get_save_directory()  # Using paths in setting
+        self.save_directory = settings.get_save_directory()  # Using paths in setting
         self.selected_measurements = {}  # For saving the user's measurement selections
         self.last_waveforms = {}
         self.last_channel_measurements = {}
@@ -114,7 +119,7 @@ class WaveformCapture:
 
         # Try to load the previously saved configuration from a file
         try:
-            with open("measurement_config.json", "r", encoding="utf-8") as f:
+            with open(MEASUREMENT_CONFIG_FILE, "r", encoding="utf-8") as f:
                 config = json.load(f)
                 self.selected_measurements = config.get("selected_measurements", {})
                 self.selected_channel_1 = config.get("selected_channel_1", 1)
@@ -153,7 +158,7 @@ class WaveformCapture:
 
         # Load previously saved selections from the JSON file
         try:
-            with open("measurement_config.json", "r", encoding="utf-8") as f:
+            with open(MEASUREMENT_CONFIG_FILE, "r", encoding="utf-8") as f:
                 config = json.load(f)
             saved_measurements = config.get("selected_measurements", {})
             self.selected_channel_1 = config.get("selected_channel_1", 1)
@@ -207,7 +212,7 @@ class WaveformCapture:
             "selected_channel_1": self.selected_channel_1,
             "selected_channel_2": self.selected_channel_2
         }
-        with open("measurement_config.json", "w", encoding="utf-8") as f:
+        with open(MEASUREMENT_CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(config, f)
 
         self.selection_window.destroy()  # Close the child window after saving

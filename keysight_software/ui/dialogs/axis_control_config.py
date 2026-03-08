@@ -14,12 +14,18 @@ timebase, channel, and marker parameters.
 """
 
 import tkinter as tk
-from tkinter import messagebox
 import json
+from pathlib import Path
+from tkinter import messagebox
+
+from keysight_software.paths import project_path
+
+
+DEFAULT_AXIS_CONFIG = project_path("axis_config.json")
 
 
 class AxisControlConfig:
-    def __init__(self, master, config_file='axis_config.json'):
+    def __init__(self, master, config_file=DEFAULT_AXIS_CONFIG):
         self.master = master
         self.config_file = config_file
 
@@ -99,8 +105,8 @@ class AxisControlConfig:
             self.config["markers"][i]["x"] = getattr(self, f"x_marker_{i + 1}").get()
             self.config["markers"][i]["y"] = getattr(self, f"y_marker_{i + 1}").get()
 
-        filepath = f"{directory}/axis_config.json"
-        with open(filepath, 'w') as f:
+        filepath = DEFAULT_AXIS_CONFIG if directory == "." else Path(directory) / "axis_config.json"
+        with open(filepath, 'w', encoding="utf-8") as f:
             json.dump(self.config, f, indent=4)
 
         messagebox.showinfo("Saved Successfully", f"The current configuration has already been saved to {filepath}")

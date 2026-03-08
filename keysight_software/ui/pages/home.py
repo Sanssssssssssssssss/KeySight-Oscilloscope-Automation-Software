@@ -16,8 +16,13 @@ file storage paths, and establish connections to the oscilloscope.
 
 import tkinter as tk
 from tkinter import messagebox, filedialog, scrolledtext
-import pyvisa
-import config  # Import the global configuration file
+
+from keysight_software import config
+
+try:
+    import pyvisa
+except ImportError:  # pragma: no cover - optional at import time
+    pyvisa = None
 
 class ConfigHome:
     def __init__(self, master):
@@ -83,6 +88,9 @@ class ConfigHome:
 
     def try_auto_detect_visa_address(self):
         """Auto-detect VISA address; allow manual input if fails."""
+        if pyvisa is None:
+            self.log_message("pyvisa is not installed. Please enter the VISA Address manually.")
+            return
         try:
             rm = pyvisa.ResourceManager()
             resources = rm.list_resources()
@@ -97,6 +105,9 @@ class ConfigHome:
 
     def detect_visa_address(self):
         """Manually trigger VISA address detection."""
+        if pyvisa is None:
+            self.log_message("pyvisa is not installed. Please enter the VISA Address manually.")
+            return
         try:
             rm = pyvisa.ResourceManager()
             resources = rm.list_resources()
@@ -111,6 +122,9 @@ class ConfigHome:
 
     def connect_visa(self):
         """Manually connect to the oscilloscope."""
+        if pyvisa is None:
+            messagebox.showerror("Connection Failed", "pyvisa is not installed in the current Python environment.")
+            return
         try:
             rm = pyvisa.ResourceManager()
             visa_address = self.visa_entry.get()

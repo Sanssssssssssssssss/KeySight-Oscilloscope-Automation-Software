@@ -15,12 +15,17 @@ and markers interactively.
 
 
 import tkinter as tk
-from tkinter import messagebox, scrolledtext
 import json
+from tkinter import messagebox, scrolledtext
+
+from keysight_software.paths import project_path
+
+
+DEFAULT_AXIS_CONFIG = project_path("axis_config.json")
 
 
 class AxisControlPage(tk.Frame):
-    def __init__(self, master, oscilloscope, config_file='axis_config.json'):
+    def __init__(self, master, oscilloscope, config_file=DEFAULT_AXIS_CONFIG):
         super().__init__(master)
         self.oscilloscope = oscilloscope
         self.config_file = config_file
@@ -179,11 +184,11 @@ class AxisControlPage(tk.Frame):
             y_marker_var = self.marker_entries[i * 2 + 1].get()
             settings["marker_positions"].append({"x": x_marker_var, "y": y_marker_var})
 
-        with open(self.config_file, 'w') as f:
+        with open(self.config_file, 'w', encoding="utf-8") as f:
             json.dump(settings, f, indent=4)
     def load_settings(self):
         try:
-            with open(self.config_file, 'r') as f:
+            with open(self.config_file, 'r', encoding="utf-8") as f:
                 settings = json.load(f)
 
             # Load timebase settings

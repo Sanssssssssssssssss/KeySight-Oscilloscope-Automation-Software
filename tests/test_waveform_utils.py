@@ -3,7 +3,7 @@ import os
 import tempfile
 import unittest
 
-from waveform_utils import (
+from keysight_software.utils.waveform import (
     build_measurement_row,
     collect_channel_measurements,
     get_selected_measurement_headers,

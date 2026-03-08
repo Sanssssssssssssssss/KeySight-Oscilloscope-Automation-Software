@@ -14,7 +14,8 @@ measurement catalog, and system help information.
 """
 
 import pyvisa
-from config import VISA_ADDRESS  # Import global VISA address
+
+from keysight_software.config import VISA_ADDRESS
 
 
 def query_oscilloscope_commands(visa_address):

@@ -16,15 +16,21 @@ marker placement, and configuration adjustments.
 import io
 
 import numpy as np
-import pyvisa
 from PIL import Image
 
-from measure import Measure
+from keysight_software.device.measure import Measure
+
+try:
+    import pyvisa
+except ImportError:  # pragma: no cover - optional at import time
+    pyvisa = None
 
 
 class Oscilloscope:
     def __init__(self, visa_address, timeout=20000):
         """Initialize the oscilloscope connection."""
+        if pyvisa is None:
+            raise ImportError("pyvisa is required to connect to the oscilloscope.")
         self.rm = pyvisa.ResourceManager()
         self.visa_address = visa_address
         self.scope = self.rm.open_resource(self.visa_address)

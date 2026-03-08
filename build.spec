@@ -19,7 +19,7 @@ datas += [
 
 a = Analysis(
     ['main.py'],  # 你的主脚本文件
-    pathex=['C:\\Users\\ROG\\PycharmProjects\\KeysightSoftware'],
+    pathex=[os.getcwd()],
     binaries=[],
     datas=datas,  # 包含数据文件
     hiddenimports=[],  # 隐藏导入的模块

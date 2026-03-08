@@ -13,8 +13,12 @@ commands, and retrieve real-time data from the oscilloscope.
 ===================================================
 """
 
-import pyvisa
 import time
+
+try:
+    import pyvisa
+except ImportError:  # pragma: no cover - optional at import time
+    pyvisa = None
 
 class Measure:
     def __init__(self, scope):
@@ -41,13 +45,17 @@ class Measure:
             try:
                 result = self.scope.query(command)
                 return float(result)
-            except pyvisa.errors.VisaIOError as e:
-                if e.error_code == pyvisa.constants.VI_ERROR_TMO and i < retries - 1:
+            except Exception as e:
+                if (
+                    pyvisa is not None
+                    and isinstance(e, pyvisa.errors.VisaIOError)
+                    and e.error_code == pyvisa.constants.VI_ERROR_TMO
+                    and i < retries - 1
+                ):
                     time.sleep(0.1)  # Wait 0.1s before retrying
                     continue
-                else:
-                    print(f"An error occurred while measuring {measurement_type} on channel {channel}: {e}")
-                    return None
+                print(f"An error occurred while measuring {measurement_type} on channel {channel}: {e}")
+                return None
             except ValueError:
                 print(f"Error converting measurement result to float: {result}")
                 return None

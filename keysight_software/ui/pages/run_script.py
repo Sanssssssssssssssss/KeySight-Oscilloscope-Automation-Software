@@ -14,19 +14,18 @@ and axis control.
 """
 
 
-import tkinter as tk
-from tkinter import filedialog, messagebox, scrolledtext, simpledialog
 import json
 import os
+
 import openpyxl
+import tkinter as tk
 from matplotlib import pyplot as plt
+from tkinter import filedialog, messagebox, scrolledtext, simpledialog
 
-from oscilloscope import Oscilloscope
-from measure import Measure
-from tkinter import filedialog, messagebox
-
-from config import VISA_ADDRESS  # Import global variables
-from waveform_utils import (
+from keysight_software.config import VISA_ADDRESS
+from keysight_software.device.measure import Measure
+from keysight_software.device.oscilloscope import Oscilloscope
+from keysight_software.utils.waveform import (
     build_measurement_row,
     collect_channel_measurements,
     collect_shared_measurements,

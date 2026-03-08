@@ -15,18 +15,24 @@ and run measurement scripts in a visual manner.
 
 
 import tkinter as tk
-from tkinter import filedialog, simpledialog, messagebox,Toplevel
 import json
-import time
-from waveform_config import WaveformConfig
-from oscilloscope import Oscilloscope
-from waveform_capture import WaveformCapture  # Import the existing class
-from measure import Measure
-from AxisControlConfig import AxisControlConfig
 import os
-from run_script_page import RunScriptPage  # Adjust the import path if necessary
+import time
+from pathlib import Path
+from tkinter import Toplevel, filedialog, messagebox
 
-from config import VISA_ADDRESS  # Import global variable
+from keysight_software.config import VISA_ADDRESS
+from keysight_software.device.measure import Measure
+from keysight_software.device.oscilloscope import Oscilloscope
+from keysight_software.paths import project_path
+from keysight_software.ui.dialogs.axis_control_config import AxisControlConfig
+from keysight_software.ui.dialogs.waveform_config import WaveformConfig
+from keysight_software.ui.pages.run_script import RunScriptPage
+
+
+CONFIGURATIONS_FILE = project_path("configurations.json")
+DEFAULT_WAVEFORM_CONFIG = project_path("waveform_config.json")
+DEFAULT_AXIS_CONFIG = project_path("axis_config.json")
 
 
 class ScriptEditor(tk.Frame):
@@ -164,7 +170,7 @@ class ScriptEditor(tk.Frame):
 
         elif module_type == "Wave Cap":
             # Detecting and loading the WaveformConfig configuration
-            if os.path.exists("waveform_config.json"):
+            if DEFAULT_WAVEFORM_CONFIG.exists():
                 WaveformConfig(config_window).load_configuration()
             else:
                 WaveformConfig(config_window)
@@ -173,7 +179,7 @@ class ScriptEditor(tk.Frame):
             config_window.title(f"Configure {module_type} Module {module_id}")
 
             # Detecting and loading AxisControlConfig configuration
-            if os.path.exists("axis_config.json"):
+            if DEFAULT_AXIS_CONFIG.exists():
                 AxisControlConfig(config_window).load_configuration()
             else:
                 AxisControlConfig(config_window)
@@ -208,14 +214,14 @@ class ScriptEditor(tk.Frame):
     def load_all_configs(self):
         """Load all module configurations from the configurations.json file."""
         try:
-            with open('configurations.json', 'r') as f:
+            with open(CONFIGURATIONS_FILE, 'r', encoding="utf-8") as f:
                 return json.load(f)
         except (FileNotFoundError, json.JSONDecodeError):
             return {}
 
     def save_all_configs(self, config):
         """Save all module configurations to the configurations.json file."""
-        with open('configurations.json', 'w') as f:
+        with open(CONFIGURATIONS_FILE, 'w', encoding="utf-8") as f:
             json.dump(config, f, indent=4)
 
     def update_console(self):
@@ -337,9 +343,10 @@ class ScriptEditor(tk.Frame):
 
         # Copy other configuration files into the save directory if they exist
         for config_file in ["waveform_config.json", "axis_config.json"]:
-            if os.path.exists(config_file):
+            source_path = project_path(config_file)
+            if source_path.exists():
                 destination = os.path.join(save_folder, config_file)
-                with open(config_file, 'r') as src, open(destination, 'w') as dst:
+                with open(source_path, 'r', encoding="utf-8") as src, open(destination, 'w', encoding="utf-8") as dst:
                     dst.write(src.read())
 
         messagebox.showinfo("Save Script", f"Script saved successfully to {save_folder}")
