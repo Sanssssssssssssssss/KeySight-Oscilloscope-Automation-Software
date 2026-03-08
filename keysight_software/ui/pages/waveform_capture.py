@@ -14,11 +14,10 @@ and data storage in multiple formats.
 ===================================================
 """
 
-import os
-import json
 import tkinter as tk
+import json
+import os
 from tkinter import ttk
-from tkinter import scrolledtext
 from tkinter import filedialog, messagebox
 
 import openpyxl  # Importing the openpyxl module to work with Excel files
@@ -30,6 +29,19 @@ from keysight_software.device.measure import Measure
 from keysight_software.device.oscilloscope import Oscilloscope
 from keysight_software.paths import project_path
 from keysight_software.ui.pages import settings
+from keysight_software.ui.theme import (
+    COLORS,
+    append_text,
+    create_button,
+    create_card,
+    create_checkbutton,
+    create_entry,
+    create_label,
+    create_option_menu,
+    create_scrolled_text,
+    create_section_heading,
+    style_toplevel,
+)
 from keysight_software.utils.waveform import (
     build_measurement_row,
     collect_channel_measurements,
@@ -49,6 +61,11 @@ class WaveformCapture:
     def __init__(self, master, oscilloscope, measure):
         '''nitializes the waveform capture GUI, establishes a connection with the oscilloscope, and loads previous settings.'''
         self.master = master
+        self.frame = tk.Frame(master, bg=COLORS["background"])
+        self.frame.grid(row=0, column=0, sticky="nsew")
+        self.frame.grid_columnconfigure(0, weight=2)
+        self.frame.grid_columnconfigure(1, weight=1)
+        self.frame.grid_rowconfigure(1, weight=1)
         self.osc = oscilloscope
         self.measure = measure
         self.is_connected = self.check_connection()  # Add this line
@@ -59,65 +76,14 @@ class WaveformCapture:
         self.last_channel_measurements = {}
         self.last_shared_measurements = {}
 
-        # Create Matplotlib Figure
         self.figure = Figure(figsize=(8, 4), dpi=100)
         self.ax = self.figure.add_subplot(111)
-        self.canvas = FigureCanvasTkAgg(self.figure, master=self.master)
-        self.canvas.get_tk_widget().grid(row=0, column=0, columnspan=4, pady=10)
+        self.selected_channel_1 = 1
+        self.selected_channel_2 = 2
+
+        self.build_layout()
         self.canvas.mpl_connect('motion_notify_event', self.on_mouse_move)
 
-        # Console output for displaying measurement results
-        self.console_output = scrolledtext.ScrolledText(master, width=50, height=10, wrap=tk.WORD, bg="black",
-                                                        fg="white", bd=0)
-        self.console_output.grid(row=4, column=0, columnspan=2, pady=10, sticky='we')
-
-        # Console output for displaying mouse movement coordinates
-        self.coordinate_output = scrolledtext.ScrolledText(master, width=30, height=10, wrap=tk.WORD, bg="black",
-                                                           fg="white", bd=0)
-        self.coordinate_output.grid(row=4, column=2, columnspan=2, pady=10, sticky='we')
-
-        # Channel selection checkboxes
-        self.channel_vars = [tk.IntVar() for _ in range(4)]
-        self.channel_checkbuttons = []
-        for i in range(4):
-            cb = tk.Checkbutton(master, text=f"Channel {i + 1}", variable=self.channel_vars[i], bg="white", bd=0)
-            cb.grid(row=1, column=i, padx=60, pady=10, sticky='w')
-
-        # Automatically detect and select active channels
-        self.detect_active_channels()
-
-        self.capture_button = tk.Button(master, text="Capture Waveform", command=self.capture_waveform)
-        self.capture_button.grid(row=3, column=0, columnspan=4, pady=0)
-
-        # Disable the Capture button if not connected to the oscilloscope
-        self.capture_button.config(state=tk.DISABLED if not self.is_connected else tk.NORMAL)
-
-        # Add a button to open the measurement selection window
-        self.select_measurements_button = tk.Button(master, text="Select Measurements",
-                                                    command=self.open_measurement_selection_window)
-        self.select_measurements_button.grid(row=3, column=2, columnspan=2, pady=10, padx=10, sticky='e')
-
-        # Save options and button
-        self.save_options = [tk.IntVar(value=1) for _ in range(4)]
-        self.save_labels = ["Save Screenshot", "Save Matplotlib Waveform", "Save CSV", "Save Measurements"]
-        self.save_checkbuttons = []
-        for i, label in enumerate(self.save_labels):
-            cb = tk.Checkbutton(master, text=label, variable=self.save_options[i], bg="white", bd=0)
-            cb.grid(row=5, column=i, sticky='w')
-            self.save_checkbuttons.append(cb)
-
-        # Save Data button
-        self.save_button = tk.Button(master, text="Save Data", command=self.save_data)
-        self.save_button.grid(row=6, column=1, columnspan=4, pady=10, padx=30)
-
-        # Filename input boxes and labels (remain unchanged)
-        self.filename_label = tk.Label(master, text="File Name:", bg="white", bd=0)
-        self.filename_label.grid(row=6, column=0, sticky='e', pady=10)
-
-        self.filename_entry = tk.Entry(master, bg="white")  # Added bg="white" for consistency
-        self.filename_entry.grid(row=6, column=1, pady=10, sticky='w')
-
-        # Try to load the previously saved configuration from a file
         try:
             with open(MEASUREMENT_CONFIG_FILE, "r", encoding="utf-8") as f:
                 config = json.load(f)
@@ -130,17 +96,118 @@ class WaveformCapture:
             self.selected_channel_1 = 1
             self.selected_channel_2 = 2
 
+    def build_layout(self):
+        plot_card, plot_inner = create_card(self.frame, padding=26)
+        plot_card.grid(row=0, column=0, rowspan=2, sticky="nsew", padx=(0, 10))
+        plot_inner.grid_columnconfigure(0, weight=1)
+        plot_inner.grid_rowconfigure(1, weight=1)
+
+        create_section_heading(
+            plot_inner,
+            "Waveform canvas",
+            "Capture one or more channels, inspect the trace visually and export the latest acquisition.",
+        ).grid(row=0, column=0, sticky="w")
+        canvas_holder = tk.Frame(plot_inner, bg=COLORS["surface"])
+        canvas_holder.grid(row=1, column=0, sticky="nsew", pady=(18, 0))
+        self.canvas = FigureCanvasTkAgg(self.figure, master=canvas_holder)
+        self.canvas.get_tk_widget().pack(fill="both", expand=True)
+
+        right_column = tk.Frame(self.frame, bg=COLORS["background"])
+        right_column.grid(row=0, column=1, rowspan=2, sticky="nsew")
+        right_column.grid_columnconfigure(0, weight=1)
+        right_column.grid_rowconfigure(2, weight=1)
+        right_column.grid_rowconfigure(3, weight=1)
+
+        control_card, control_inner = create_card(right_column, padding=24)
+        control_card.grid(row=0, column=0, sticky="ew", pady=(0, 12))
+        control_inner.grid_columnconfigure(0, weight=1)
+        create_section_heading(
+            control_inner,
+            "Capture controls",
+            "Choose active channels and measurement presets before triggering a new acquisition.",
+        ).grid(row=0, column=0, sticky="w")
+
+        self.channel_vars = [tk.IntVar() for _ in range(4)]
+        channel_row = tk.Frame(control_inner, bg=control_inner.cget("bg"))
+        channel_row.grid(row=1, column=0, sticky="ew", pady=(16, 0))
+        for i in range(4):
+            cb = create_checkbutton(channel_row, f"Channel {i + 1}", self.channel_vars[i])
+            cb.pack(anchor="w")
+
+        action_row = tk.Frame(control_inner, bg=control_inner.cget("bg"))
+        action_row.grid(row=2, column=0, sticky="w", pady=(18, 0))
+        self.capture_button = create_button(action_row, "Capture Waveform", self.capture_waveform, tone="primary")
+        self.capture_button.pack(side="left", padx=(0, 10))
+        create_button(
+            action_row,
+            "Select Measurements",
+            self.open_measurement_selection_window,
+            tone="secondary",
+        ).pack(side="left")
+        self.capture_button.config(state=tk.DISABLED if not self.is_connected else tk.NORMAL)
+
+        export_card, export_inner = create_card(right_column, padding=24)
+        export_card.grid(row=1, column=0, sticky="ew", pady=(0, 12))
+        export_inner.grid_columnconfigure(0, weight=1)
+        create_section_heading(
+            export_inner,
+            "Export",
+            "Save screenshots, plots, waveform CSVs and the latest calculated measurements.",
+        ).grid(row=0, column=0, sticky="w")
+
+        self.save_options = [tk.IntVar(value=1) for _ in range(4)]
+        self.save_labels = ["Save Screenshot", "Save Plot", "Save CSV", "Save Measurements"]
+        for index, label in enumerate(self.save_labels):
+            create_checkbutton(export_inner, label, self.save_options[index]).grid(
+                row=index + 1, column=0, sticky="w", pady=(12 if index == 0 else 8, 0)
+            )
+
+        name_field = tk.Frame(export_inner, bg=export_inner.cget("bg"))
+        name_field.grid(row=5, column=0, sticky="ew", pady=(16, 0))
+        name_field.grid_columnconfigure(0, weight=1)
+        create_label(name_field, "File Name", muted=True).grid(row=0, column=0, sticky="w")
+        self.filename_entry = create_entry(name_field)
+        self.filename_entry.grid(row=1, column=0, sticky="ew", pady=(8, 0), ipady=10)
+
+        create_button(export_inner, "Save Data", self.save_data, tone="primary").grid(
+            row=6, column=0, sticky="w", pady=(18, 0)
+        )
+
+        measurement_card, measurement_inner = create_card(right_column, padding=24)
+        measurement_card.grid(row=2, column=0, sticky="nsew", pady=(0, 12))
+        measurement_inner.grid_columnconfigure(0, weight=1)
+        measurement_inner.grid_rowconfigure(1, weight=1)
+        create_section_heading(
+            measurement_inner,
+            "Measurement results",
+            "Latest scalar outputs from the selected acquisition.",
+        ).grid(row=0, column=0, sticky="w")
+        self.console_output = create_scrolled_text(measurement_inner, height=12, mono=True)
+        self.console_output.grid(row=1, column=0, sticky="nsew", pady=(16, 0))
+
+        coord_card, coord_inner = create_card(right_column, padding=24)
+        coord_card.grid(row=3, column=0, sticky="nsew")
+        coord_inner.grid_columnconfigure(0, weight=1)
+        coord_inner.grid_rowconfigure(1, weight=1)
+        create_section_heading(
+            coord_inner,
+            "Cursor coordinates",
+            "Live plot coordinates while moving across the waveform.",
+        ).grid(row=0, column=0, sticky="w")
+        self.coordinate_output = create_scrolled_text(coord_inner, height=8, mono=True)
+        self.coordinate_output.grid(row=1, column=0, sticky="nsew", pady=(16, 0))
+
+        self.detect_active_channels()
+
     def open_measurement_selection_window(self):
         '''Opens a window for users to select waveform measurement parameters.'''
         self.selection_window = tk.Toplevel(self.master)
-        self.selection_window.title("Select Measurement Parameters")
-        self.selection_window.geometry("400x400")
+        style_toplevel(self.selection_window, "Select Measurement Parameters", "460x620")
 
-        # Creating a scrolling area
         container = ttk.Frame(self.selection_window)
-        canvas = tk.Canvas(container)
+        canvas = tk.Canvas(container, bg=COLORS["background"], highlightthickness=0)
         scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
-        scrollable_frame = ttk.Frame(canvas)
+        scrollable_frame = tk.Frame(canvas, bg=COLORS["background"])
 
         scrollable_frame.bind(
             "<Configure>",
@@ -156,7 +223,6 @@ class WaveformCapture:
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
-        # Load previously saved selections from the JSON file
         try:
             with open(MEASUREMENT_CONFIG_FILE, "r", encoding="utf-8") as f:
                 config = json.load(f)
@@ -168,36 +234,43 @@ class WaveformCapture:
             self.selected_channel_1 = 1
             self.selected_channel_2 = 2
 
-        # Initialize measurement selection variables
         self.measurement_selection_vars = {
             name: tk.IntVar(value=saved_measurements.get(name, 0))
             for name in get_measurement_names()
         }
 
-        # Create a selection screen
+        card, inner = create_card(scrollable_frame, padding=22)
+        card.pack(fill="both", expand=True, padx=16, pady=16)
+        create_section_heading(
+            inner,
+            "Measurement preset",
+            "Choose scalar measurements to calculate after each capture.",
+        ).pack(anchor="w")
         for name, var in self.measurement_selection_vars.items():
-            cb = tk.Checkbutton(scrollable_frame, text=name, variable=var)
-            cb.pack(anchor='w')
+            create_checkbutton(inner, name, var).pack(anchor='w', pady=(10, 0))
 
-        # Add channel selection for dual-channel measurements
-        tk.Label(scrollable_frame, text="Select channels for dual-channel measurements:").pack(anchor='w')
+        dual_card, dual_inner = create_card(scrollable_frame, padding=22)
+        dual_card.pack(fill="x", padx=16, pady=(0, 16))
+        create_section_heading(
+            dual_inner,
+            "Dual-channel measurements",
+            "Set the channel pair used for phase calculations.",
+        ).pack(anchor="w")
 
         self.channel_1_var = tk.IntVar(value=self.selected_channel_1)
         self.channel_2_var = tk.IntVar(value=self.selected_channel_2)
+        create_label(dual_inner, "Channel 1", muted=True).pack(anchor="w", pady=(16, 0))
+        create_option_menu(dual_inner, self.channel_1_var, [1, 2, 3, 4]).pack(anchor="w", pady=(8, 0))
+        create_label(dual_inner, "Channel 2", muted=True).pack(anchor="w", pady=(16, 0))
+        create_option_menu(dual_inner, self.channel_2_var, [1, 2, 3, 4]).pack(anchor="w", pady=(8, 0))
 
-        tk.Label(scrollable_frame, text="Channel 1:").pack(anchor='w')
-        tk.OptionMenu(scrollable_frame, self.channel_1_var, *[1, 2, 3, 4]).pack(anchor='w')
+        button_row = tk.Frame(scrollable_frame, bg=COLORS["background"])
+        button_row.pack(fill="x", padx=16, pady=(0, 16))
+        create_button(button_row, "Save Preset", self.save_measurement_selection, tone="primary").pack(anchor="e")
 
-        tk.Label(scrollable_frame, text="Channel 2:").pack(anchor='w')
-        tk.OptionMenu(scrollable_frame, self.channel_2_var, *[1, 2, 3, 4]).pack(anchor='w')
-
-        # Save button
-        save_button = tk.Button(self.selection_window, text="Save", command=self.save_measurement_selection)
-        save_button.pack(pady=10)
-
-        self.selection_window.transient(self.master)  # Keep the window on top
-        self.selection_window.grab_set()  # Make it modal
-        self.master.wait_window(self.selection_window)  # Wait until window is closed
+        self.selection_window.transient(self.master)
+        self.selection_window.grab_set()
+        self.master.wait_window(self.selection_window)
 
     def save_measurement_selection(self):
         '''Saves selected measurement settings to a JSON file.'''
@@ -220,11 +293,9 @@ class WaveformCapture:
     def check_connection(self):
         '''Checks whether the oscilloscope is properly connected.'''
         try:
-            # Attempt a simple command to check if the oscilloscope is connected
             self.osc.get_active_channels()
             return True
         except Exception as e:
-            messagebox.showerror("Connection Error", f"Could not connect to the oscilloscope: {e}")
             return False
 
     def on_mouse_move(self, event):
@@ -232,8 +303,7 @@ class WaveformCapture:
         if event.inaxes:  # Make sure the mouse is in the drawing area
             x_data = event.xdata
             y_data = event.ydata
-            self.coordinate_output.insert(tk.END, f"X: {x_data:.5f}, Y: {y_data:.5f}\n")
-            self.coordinate_output.see(tk.END)
+            append_text(self.coordinate_output, f"X: {x_data:.5f}, Y: {y_data:.5f}\n")
 
     def detect_active_channels(self):
         '''Automatically detects and selects active oscilloscope channels.'''
@@ -274,7 +344,7 @@ class WaveformCapture:
                 channel,
             )
             for line in format_channel_measurement_lines(channel, channel_measurements[channel]):
-                self.console_output.insert(tk.END, f"{line}\n")
+                append_text(self.console_output, f"{line}\n")
 
         shared_measurements = collect_shared_measurements(
             self.measure,
@@ -287,7 +357,7 @@ class WaveformCapture:
             self.selected_channel_1,
             self.selected_channel_2,
         ):
-            self.console_output.insert(tk.END, f"{line}\n")
+            append_text(self.console_output, f"{line}\n")
 
         self.last_waveforms = waveforms
         self.last_channel_measurements = channel_measurements
@@ -330,19 +400,19 @@ class WaveformCapture:
         if self.save_options[0].get():
             screenshot_path = os.path.join(full_save_dir, f"{file_name}_screenshot.png")
             self.osc.capture_screenshot(screenshot_path)
-            self.console_output.insert(tk.END, f"Screenshot saved at {screenshot_path}\n")
+            append_text(self.console_output, f"Screenshot saved at {screenshot_path}\n")
 
         # Saving Matplotlib Waveforms
         if self.save_options[1].get():
             figure_path = os.path.join(full_save_dir, f"{file_name}_waveform_plot.png")
             self.figure.savefig(figure_path)
-            self.console_output.insert(tk.END, f"Waveform plot saved at {figure_path}\n")
+            append_text(self.console_output, f"Waveform plot saved at {figure_path}\n")
 
         # Save CSV file
         if self.save_options[2].get():
             csv_path = os.path.join(full_save_dir, f"{file_name}_waveform_data.csv")
             write_waveforms_to_csv(csv_path, self.last_waveforms)
-            self.console_output.insert(tk.END, f"Waveform data saved at {csv_path}\n")
+            append_text(self.console_output, f"Waveform data saved at {csv_path}\n")
 
         if self.save_options[3].get():
             excel_path = os.path.join(full_save_dir, f"{file_name}_measurements.xlsx")
@@ -365,7 +435,7 @@ class WaveformCapture:
                 sheet.append(channel_data)
 
             workbook.save(excel_path)
-            self.console_output.insert(tk.END, f"Measurements saved at {excel_path}\n")
+            append_text(self.console_output, f"Measurements saved at {excel_path}\n")
 
 
 if __name__ == "__main__":

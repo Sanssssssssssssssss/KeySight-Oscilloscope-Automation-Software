@@ -19,6 +19,13 @@ from pathlib import Path
 from tkinter import messagebox
 
 from keysight_software.paths import project_path
+from keysight_software.ui.theme import (
+    COLORS,
+    create_button,
+    create_entry,
+    create_label,
+    style_toplevel,
+)
 
 
 DEFAULT_AXIS_CONFIG = project_path("axis_config.json")
@@ -28,6 +35,8 @@ class AxisControlConfig:
     def __init__(self, master, config_file=DEFAULT_AXIS_CONFIG):
         self.master = master
         self.config_file = config_file
+        style_toplevel(self.master, geometry="520x900")
+        self.master.configure(bg=COLORS["background"], padx=24, pady=24)
 
         # Initialize configuration
         self.config = {
@@ -40,49 +49,53 @@ class AxisControlConfig:
         self.create_ui()
 
     def create_ui(self):
-        tk.Label(self.master, text="Timebase Settings:").grid(row=0, column=0, columnspan=2, pady=10)
+        create_label(self.master, "Timebase Settings", font=("SF Pro Display", 16, "bold")).grid(
+            row=0, column=0, columnspan=2, pady=10, sticky="w"
+        )
 
-        tk.Label(self.master, text="Scale (s/div):").grid(row=1, column=0, sticky='w')
+        create_label(self.master, "Scale (s/div)", muted=True).grid(row=1, column=0, sticky='w')
         self.timebase_scale = tk.DoubleVar(value=self.config["timebase"]["scale"])
-        tk.Entry(self.master, textvariable=self.timebase_scale).grid(row=1, column=1, padx=10, pady=5)
+        create_entry(self.master, textvariable=self.timebase_scale).grid(row=1, column=1, padx=10, pady=5, ipady=8)
 
-        tk.Label(self.master, text="Position (s):").grid(row=2, column=0, sticky='w')
+        create_label(self.master, "Position (s)", muted=True).grid(row=2, column=0, sticky='w')
         self.timebase_position = tk.DoubleVar(value=self.config["timebase"]["position"])
-        tk.Entry(self.master, textvariable=self.timebase_position).grid(row=2, column=1, padx=10, pady=5)
+        create_entry(self.master, textvariable=self.timebase_position).grid(row=2, column=1, padx=10, pady=5, ipady=8)
 
-        # Channel settings
         for i in range(1, 5):
-            tk.Label(self.master, text=f"Channel {i} Settings:").grid(row=3 + (i - 1) * 3, column=0, columnspan=2,
-                                                                      pady=10)
+            create_label(self.master, f"Channel {i} Settings", font=("SF Pro Display", 14, "bold")).grid(
+                row=3 + (i - 1) * 3, column=0, columnspan=2, pady=(18, 8), sticky="w"
+            )
 
-            tk.Label(self.master, text="Scale (V/div):").grid(row=4 + (i - 1) * 3, column=0, sticky='w')
+            create_label(self.master, "Scale (V/div)", muted=True).grid(row=4 + (i - 1) * 3, column=0, sticky='w')
             scale_var = tk.DoubleVar(value=self.config["channels"][f"channel_{i}"]["scale"])
-            tk.Entry(self.master, textvariable=scale_var).grid(row=4 + (i - 1) * 3, column=1, padx=10, pady=5)
+            create_entry(self.master, textvariable=scale_var).grid(row=4 + (i - 1) * 3, column=1, padx=10, pady=5, ipady=8)
             setattr(self, f"channel_{i}_scale", scale_var)
 
-            tk.Label(self.master, text="Position (V):").grid(row=5 + (i - 1) * 3, column=0, sticky='w')
+            create_label(self.master, "Position (V)", muted=True).grid(row=5 + (i - 1) * 3, column=0, sticky='w')
             position_var = tk.DoubleVar(value=self.config["channels"][f"channel_{i}"]["position"])
-            tk.Entry(self.master, textvariable=position_var).grid(row=5 + (i - 1) * 3, column=1, padx=10, pady=5)
+            create_entry(self.master, textvariable=position_var).grid(row=5 + (i - 1) * 3, column=1, padx=10, pady=5, ipady=8)
             setattr(self, f"channel_{i}_position", position_var)
 
-        # Marker settings
-        tk.Label(self.master, text="Markers:").grid(row=15, column=0, columnspan=2, pady=10)
+        create_label(self.master, "Markers", font=("SF Pro Display", 16, "bold")).grid(
+            row=15, column=0, columnspan=2, pady=(20, 8), sticky="w"
+        )
         for i in range(2):
-            tk.Label(self.master, text=f"X Marker {i + 1} Position (s):").grid(row=16 + i * 2, column=0, sticky='w')
+            create_label(self.master, f"X Marker {i + 1} Position (s)", muted=True).grid(row=16 + i * 2, column=0, sticky='w')
             x_marker_var = tk.DoubleVar(value=self.config["markers"][i]["x"])
-            tk.Entry(self.master, textvariable=x_marker_var).grid(row=16 + i * 2, column=1, padx=10, pady=5)
+            create_entry(self.master, textvariable=x_marker_var).grid(row=16 + i * 2, column=1, padx=10, pady=5, ipady=8)
             setattr(self, f"x_marker_{i + 1}", x_marker_var)
 
-            tk.Label(self.master, text=f"Y Marker {i + 1} Position (V):").grid(row=17 + i * 2, column=0, sticky='w')
+            create_label(self.master, f"Y Marker {i + 1} Position (V)", muted=True).grid(row=17 + i * 2, column=0, sticky='w')
             y_marker_var = tk.DoubleVar(value=self.config["markers"][i]["y"])
-            tk.Entry(self.master, textvariable=y_marker_var).grid(row=17 + i * 2, column=1, padx=10, pady=5)
+            create_entry(self.master, textvariable=y_marker_var).grid(row=17 + i * 2, column=1, padx=10, pady=5, ipady=8)
             setattr(self, f"y_marker_{i + 1}", y_marker_var)
 
-        # Save and load buttons
-        tk.Button(self.master, text="Save Configuration", command=self.save_configuration).grid(row=21, column=0,
-                                                                                                pady=10)
-        tk.Button(self.master, text="Load Configuration", command=self.load_configuration).grid(row=21, column=1,
-                                                                                                pady=10)
+        create_button(self.master, "Save Configuration", self.save_configuration, tone="primary").grid(
+            row=21, column=0, pady=18
+        )
+        create_button(self.master, "Load Configuration", self.load_configuration, tone="secondary").grid(
+            row=21, column=1, pady=18
+        )
 
     def save_if_valid(self):
         """Save all variables"""

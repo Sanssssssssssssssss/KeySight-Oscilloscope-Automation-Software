@@ -18,7 +18,6 @@ import tkinter as tk
 import json
 import os
 import time
-from pathlib import Path
 from tkinter import Toplevel, filedialog, messagebox
 
 from keysight_software.config import VISA_ADDRESS
@@ -28,6 +27,7 @@ from keysight_software.paths import project_path
 from keysight_software.ui.dialogs.axis_control_config import AxisControlConfig
 from keysight_software.ui.dialogs.waveform_config import WaveformConfig
 from keysight_software.ui.pages.run_script import RunScriptPage
+from keysight_software.ui.theme import COLORS, create_button, create_label, style_toplevel
 
 
 CONFIGURATIONS_FILE = project_path("configurations.json")
@@ -40,15 +40,32 @@ class ScriptEditor(tk.Frame):
         """Initialize the ScriptEditor UI, set up the canvas, slots, and buttons for creating, saving, and running scripts."""
         super().__init__(master)
         self.master = master
-        self.grid(sticky=tk.NSEW)  # Extraction Channel Number
+        self.configure(bg=COLORS["background"])
+        self.grid(sticky=tk.NSEW)
 
-        # Canvas for drawing modules, slots, and connections
-        self.canvas = tk.Canvas(self, width=800, height=500, bg='white')
-        self.canvas.grid(row=0, column=0, pady=10, sticky=tk.NSEW)  # Instead, use grid() and set the fill property
+        self.canvas = tk.Canvas(
+            self,
+            width=800,
+            height=500,
+            bg=COLORS["surface_alt"],
+            highlightthickness=1,
+            highlightbackground=COLORS["border"],
+        )
+        self.canvas.grid(row=0, column=0, pady=10, sticky=tk.NSEW)
 
-        # Console for displaying the sequence
-        self.console = tk.Text(self, height=10, bg='black', fg='white')
-        self.console.grid(row=1, column=0, sticky=tk.NSEW)  # Use grid() to place
+        self.console = tk.Text(
+            self,
+            height=10,
+            bg=COLORS["surface"],
+            fg=COLORS["text"],
+            relief="flat",
+            bd=0,
+            insertbackground=COLORS["text"],
+            highlightthickness=1,
+            highlightbackground=COLORS["border"],
+            font=("Consolas", 10),
+        )
+        self.console.grid(row=1, column=0, sticky=tk.NSEW)
         self.save_directory = tk.StringVar(value="")
 
         # Attempt to initialize the WaveformCapture instance
@@ -64,7 +81,15 @@ class ScriptEditor(tk.Frame):
         # Define slots
         self.slots = []
         for i in range(10):
-            slot = self.canvas.create_rectangle(150 + i * 130, 200, 220 + i * 130, 250, dash=(4, 2))
+            slot = self.canvas.create_rectangle(
+                150 + i * 130,
+                200,
+                220 + i * 130,
+                250,
+                dash=(4, 2),
+                outline=COLORS["border_strong"],
+                width=2,
+            )
             self.slots.append(slot)
 
         # Pre-generate modules on the left side
@@ -81,17 +106,16 @@ class ScriptEditor(tk.Frame):
         self.dragged_module = None
 
         # Buttons for saving, loading, and running scripts
-        btn_frame = tk.Frame(self)
-        btn_frame.grid(row=2, column=0, pady=10)  # use grid()
+        btn_frame = tk.Frame(self, bg=COLORS["background"])
+        btn_frame.grid(row=2, column=0, pady=14, sticky="w")
 
-        tk.Button(btn_frame, text="Save Script", command=self.save_script).grid(row=0, column=0)
-        tk.Button(btn_frame, text="Load Script", command=self.load_script).grid(row=0, column=1)
-        tk.Button(btn_frame, text="Run Script", command=self.run_script).grid(row=1, column=0, columnspan=2)
-        tk.Button(btn_frame, text="Browse Save Folder", command=self.browse_save_directory).grid(row=0, column=2)
+        create_button(btn_frame, "Save Script", self.save_script, tone="primary").grid(row=0, column=0, padx=(0, 10))
+        create_button(btn_frame, "Load Script", self.load_script, tone="secondary").grid(row=0, column=1, padx=(0, 10))
+        create_button(btn_frame, "Browse Save Folder", self.browse_save_directory, tone="secondary").grid(row=0, column=2)
+        create_button(btn_frame, "Run Script", self.run_script, tone="secondary").grid(row=1, column=0, pady=(10, 0))
 
-        # Label to show the selected directory
-        self.save_path_label = tk.Label(btn_frame, text="Save Path: None", fg="blue")
-        self.save_path_label.grid(row=0, column=3, padx=10, pady=5)
+        self.save_path_label = create_label(btn_frame, "Save Path: None", muted=True)
+        self.save_path_label.grid(row=0, column=3, padx=12, pady=5)
 
         # Adjust window weights for proper resizing
         self.master.grid_rowconfigure(0, weight=1)
@@ -121,8 +145,16 @@ class ScriptEditor(tk.Frame):
     def create_module(self, text, color, x, y):
         """Create a module with a specified type, color, and position, and bind interaction events."""
         module_id = f"{text}_{int(time.time() * 1000)}"  # Create a unique ID for each module
-        module = self.canvas.create_rectangle(x, y, x + 100, y + 50, fill=color)
-        label = self.canvas.create_text(x + 50, y + 25, text=text)
+        module = self.canvas.create_rectangle(
+            x,
+            y,
+            x + 100,
+            y + 50,
+            fill=color,
+            outline=COLORS["border"],
+            width=2,
+        )
+        label = self.canvas.create_text(x + 50, y + 25, text=text, fill=COLORS["text"], font=("SF Pro Text", 10, "bold"))
         self.modules.append({"type": text, "id": module_id, "canvas_id": module, "x": x, "y": y, "label_id": label})
         self.canvas.tag_bind(module, "<Button-1>", self.start_drag)
         self.canvas.tag_bind(module, "<B1-Motion>", self.drag_module)
@@ -143,6 +175,7 @@ class ScriptEditor(tk.Frame):
     def open_config_window(self, module_id):
         """Open the configuration window for a specific module type (Delay, Wave Cap, Axis Control)."""
         config_window = tk.Toplevel(self.master)
+        style_toplevel(config_window, geometry="520x620")
         module_type = None
 
         # Determine the type of module to double-click

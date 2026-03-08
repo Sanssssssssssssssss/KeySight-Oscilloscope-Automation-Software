@@ -20,11 +20,20 @@ import os
 import openpyxl
 import tkinter as tk
 from matplotlib import pyplot as plt
-from tkinter import filedialog, messagebox, scrolledtext, simpledialog
+from tkinter import filedialog, messagebox, simpledialog
 
 from keysight_software.config import VISA_ADDRESS
 from keysight_software.device.measure import Measure
 from keysight_software.device.oscilloscope import Oscilloscope
+from keysight_software.ui.theme import (
+    COLORS,
+    append_text,
+    create_button,
+    create_card,
+    create_entry,
+    create_scrolled_text,
+    create_section_heading,
+)
 from keysight_software.utils.waveform import (
     build_measurement_row,
     collect_channel_measurements,
@@ -54,28 +63,43 @@ class RunScriptPage(tk.Frame):
         self.create_widgets()
 
     def create_widgets(self):
-        # Script path selection area
-        tk.Label(self, text="Script Path:").grid(row=0, column=0, sticky=tk.W, padx=10, pady=5)
-        tk.Entry(self, textvariable=self.script_path, width=94).grid(row=0, column=1, padx=10, pady=5)
-        tk.Button(self, text="Browse", command=self.browse_script).grid(row=0, column=2, padx=10, pady=5)
+        self.configure(bg=COLORS["background"])
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=1)
+        self.grid_rowconfigure(2, weight=1)
 
-        # Console to display script sequence
-        tk.Label(self, text="Script Sequence:").grid(row=1, column=0, columnspan=3, sticky=tk.W, padx=10, pady=5)
-        self.script_console = scrolledtext.ScrolledText(self, height=10, bg='lightgray')
-        self.script_console.grid(row=2, column=0, columnspan=3, padx=10, pady=5, sticky=tk.NSEW)
+        picker_card, picker = create_card(self, padding=24)
+        picker_card.grid(row=0, column=0, sticky="ew", pady=(0, 12))
+        picker.grid_columnconfigure(0, weight=1)
+        create_section_heading(
+            picker,
+            "Script runner",
+            "Pick a saved automation sequence, preview the module order and execute it against the instrument.",
+        ).grid(row=0, column=0, sticky="w")
+        self.path_entry = create_entry(picker, textvariable=self.script_path)
+        self.path_entry.grid(row=1, column=0, sticky="ew", pady=(16, 0), ipady=10)
+        action_row = tk.Frame(picker, bg=picker.cget("bg"))
+        action_row.grid(row=2, column=0, sticky="w", pady=(16, 0))
+        create_button(action_row, "Browse Script Folder", self.browse_script, tone="secondary").pack(
+            side="left", padx=(0, 10)
+        )
+        create_button(action_row, "Run Script", self.run_script, tone="primary").pack(side="left")
 
-        # Console to display execution status
-        tk.Label(self, text="Status:").grid(row=3, column=0, columnspan=3, sticky=tk.W, padx=10, pady=5)
-        self.status_console = scrolledtext.ScrolledText(self, height=10, bg='lightgray')
-        self.status_console.grid(row=4, column=0, columnspan=3, padx=10, pady=5, sticky=tk.NSEW)
+        sequence_card, sequence = create_card(self, padding=24)
+        sequence_card.grid(row=1, column=0, sticky="nsew", pady=(0, 12))
+        sequence.grid_columnconfigure(0, weight=1)
+        sequence.grid_rowconfigure(1, weight=1)
+        create_section_heading(sequence, "Script sequence").grid(row=0, column=0, sticky="w")
+        self.script_console = create_scrolled_text(sequence, height=12, mono=True)
+        self.script_console.grid(row=1, column=0, sticky="nsew", pady=(16, 0))
 
-        # Run script button
-        tk.Button(self, text="Run Script", command=self.run_script).grid(row=5, column=0, columnspan=3, pady=10)
-
-        # Configure window layout for proper resizing
-        self.master.grid_rowconfigure(2, weight=1)
-        self.master.grid_rowconfigure(4, weight=1)
-        self.master.grid_columnconfigure(1, weight=1)
+        status_card, status = create_card(self, padding=24)
+        status_card.grid(row=2, column=0, sticky="nsew")
+        status.grid_columnconfigure(0, weight=1)
+        status.grid_rowconfigure(1, weight=1)
+        create_section_heading(status, "Execution status").grid(row=0, column=0, sticky="w")
+        self.status_console = create_scrolled_text(status, height=12, mono=True)
+        self.status_console.grid(row=1, column=0, sticky="nsew", pady=(16, 0))
 
     def browse_script(self):
         """Browse and select the folder containing the script to run"""
@@ -96,7 +120,7 @@ class RunScriptPage(tk.Frame):
             with open(filepath, 'r') as f:
                 script_data = json.load(f)
                 for i, module in enumerate(script_data.get("modules", [])):
-                    self.script_console.insert(tk.END, f"{i + 1}. {module['type']}\n")
+                    append_text(self.script_console, f"{i + 1}. {module['type']}\n")
         except Exception as e:
             messagebox.showerror("Load Error", f"Cannot Load Script: {e}")
 
@@ -115,26 +139,26 @@ class RunScriptPage(tk.Frame):
 
             for module in script_data.get("modules", []):
                 module_type = module.get("type")
-                self.status_console.insert(tk.END, f"Running: {module_type}\n")
+                append_text(self.status_console, f"Running: {module_type}\n")
                 self.status_console.update()
 
                 if module_type == "Delay":
                     delay_time = module.get("delay", 1.0)
-                    self.status_console.insert(tk.END, f"Waiting for {delay_time} seconds...\n")
+                    append_text(self.status_console, f"Waiting for {delay_time} seconds...\n")
                     self.status_console.update()
                     self.master.after(int(delay_time * 1000))
 
                 elif module_type == "Wave Cap":
-                    self.status_console.insert(tk.END, "Executing Waveform Capture...\n")
+                    append_text(self.status_console, "Executing Waveform Capture...\n")
                     self.status_console.update()
                     self.execute_waveform_capture()  # Use the function defined before
 
                 elif module_type == "Axis Control":
-                    self.status_console.insert(tk.END, "Executing Axis Control...\n")
+                    append_text(self.status_console, "Executing Axis Control...\n")
                     self.status_console.update()
                     self.execute_axis_control()      # Use the function defined before
 
-                self.status_console.insert(tk.END, f"{module_type} completed\n\n")
+                append_text(self.status_console, f"{module_type} completed\n\n")
                 self.status_console.update()
 
             messagebox.showinfo("Execution Complete", "The script has been successfully executed.")
@@ -143,7 +167,7 @@ class RunScriptPage(tk.Frame):
 
     def execute_waveform_capture(self):
         if not self.oscilloscope or not self.measure:
-            self.status_console.insert(tk.END, "Oscilloscope is not connected.\n")
+            append_text(self.status_console, "Oscilloscope is not connected.\n")
             return
 
         try:
@@ -158,13 +182,13 @@ class RunScriptPage(tk.Frame):
             if not save_dir:
                 save_dir = filedialog.askdirectory(title="Select Directory to Save Data")
             if not save_dir:
-                self.status_console.insert(tk.END, "No save directory selected.\n")
+                append_text(self.status_console, "No save directory selected.\n")
                 return
 
             # Get the file name entered by the user
             file_name = simpledialog.askstring("Input", "Enter file name:")
             if not file_name:
-                self.status_console.insert(tk.END, "No file name provided.\n")
+                append_text(self.status_console, "No file name provided.\n")
                 return
 
             # Create a subdirectory with the filename as the subdirectory name
@@ -189,7 +213,7 @@ class RunScriptPage(tk.Frame):
                 if enabled == 1
             ]
             if not selected_channels:
-                self.status_console.insert(tk.END, "No channels selected in the waveform configuration.\n")
+                append_text(self.status_console, "No channels selected in the waveform configuration.\n")
                 return
 
             selected_measurements = config.get('measurements', {})
@@ -202,11 +226,11 @@ class RunScriptPage(tk.Frame):
             if save_screenshot:
                 screenshot_path = os.path.join(full_save_dir, f"{file_name}_screenshot.png")
                 self.oscilloscope.capture_screenshot(screenshot_path)
-                self.status_console.insert(tk.END, f"Screenshot saved at {screenshot_path}\n")
+                append_text(self.status_console, f"Screenshot saved at {screenshot_path}\n")
                 # Plotting and saving Matplotlib waveforms
             if save_waveform_plot:
                 if not waveforms:
-                    self.status_console.insert(tk.END, "No waveform data captured.\n")
+                    append_text(self.status_console, "No waveform data captured.\n")
                     return
 
                 # If the figure and ax are not set up in advance, they can be created here.
@@ -220,15 +244,15 @@ class RunScriptPage(tk.Frame):
                     figure_path = os.path.join(full_save_dir, f"{file_name}_waveform_plot.png")
                     figure.savefig(figure_path)
                     plt.close(figure)  # Turn off figure to avoid memory leaks
-                    self.status_console.insert(tk.END, f"Waveform plot saved at {figure_path}\n")
+                    append_text(self.status_console, f"Waveform plot saved at {figure_path}\n")
                 except Exception as e:
-                    self.status_console.insert(tk.END, f"Failed to plot waveform: {e}\n")
+                    append_text(self.status_console, f"Failed to plot waveform: {e}\n")
 
             # Save waveform data to CSV file
             if save_csv:
                 csv_path = os.path.join(full_save_dir, f"{file_name}_waveform_data.csv")
                 write_waveforms_to_csv(csv_path, waveforms)
-                self.status_console.insert(tk.END, f"Waveform data saved at {csv_path}\n")
+                append_text(self.status_console, f"Waveform data saved at {csv_path}\n")
 
             # Save measurements to Excel file
             if save_excel:
@@ -262,15 +286,15 @@ class RunScriptPage(tk.Frame):
                     sheet.append(channel_data)
 
                 workbook.save(excel_path)
-                self.status_console.insert(tk.END, f"Measurements saved at {excel_path}\n")
+                append_text(self.status_console, f"Measurements saved at {excel_path}\n")
 
-            self.status_console.insert(tk.END, "Waveform Capture completed.\n")
+            append_text(self.status_console, "Waveform Capture completed.\n")
         except Exception as e:
-            self.status_console.insert(tk.END, f"Waveform Capture failed: {e}\n")
+            append_text(self.status_console, f"Waveform Capture failed: {e}\n")
 
     def execute_axis_control(self):
         if not self.oscilloscope:
-            self.status_console.insert(tk.END, "Oscilloscope is not connected.\n")
+            append_text(self.status_console, "Oscilloscope is not connected.\n")
             return
 
         try:
@@ -286,8 +310,7 @@ class RunScriptPage(tk.Frame):
             timebase_position = config['timebase']['position']
             self.oscilloscope.set_timebase_scale(timebase_scale)
             self.oscilloscope.set_timebase_position(timebase_position)
-            self.status_console.insert(tk.END,
-                                       f"Timebase set to scale: {timebase_scale}, position: {timebase_position}\n")
+            append_text(self.status_console, f"Timebase set to scale: {timebase_scale}, position: {timebase_position}\n")
 
             # Configure channels
             for channel, settings in config['channels'].items():
@@ -296,8 +319,7 @@ class RunScriptPage(tk.Frame):
                 position = settings['position']
                 self.oscilloscope.set_channel_scale(channel_num, scale)
                 self.oscilloscope.set_channel_position(channel_num, position)
-                self.status_console.insert(tk.END,
-                                           f"Channel {channel_num} set to scale: {scale}, position: {position}\n")
+                append_text(self.status_console, f"Channel {channel_num} set to scale: {scale}, position: {position}\n")
 
             # Set markers
             for i, marker in enumerate(config['markers']):
@@ -306,15 +328,15 @@ class RunScriptPage(tk.Frame):
                 if i == 0:
                     self.oscilloscope.add_marker_x1(x)
                     self.oscilloscope.add_marker_y1(y)
-                    self.status_console.insert(tk.END, f"Marker 1 set to x: {x}, y: {y}\n")
+                    append_text(self.status_console, f"Marker 1 set to x: {x}, y: {y}\n")
                 elif i == 1:
                     self.oscilloscope.add_marker_x2(x)
                     self.oscilloscope.add_marker_y2(y)
-                    self.status_console.insert(tk.END, f"Marker 2 set to x: {x}, y: {y}\n")
+                    append_text(self.status_console, f"Marker 2 set to x: {x}, y: {y}\n")
 
-            self.status_console.insert(tk.END, "Axis Control completed.\n")
+            append_text(self.status_console, "Axis Control completed.\n")
         except Exception as e:
-            self.status_console.insert(tk.END, f"Axis Control failed: {e}\n")
+            append_text(self.status_console, f"Axis Control failed: {e}\n")
 
 
 # Test main function

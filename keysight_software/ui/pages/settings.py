@@ -1,105 +1,100 @@
-"""
-===================================================
-Created on: 22-07-2024
-Author: Chang Xu
-File: setting.py
-Version: 1.4
-Language: Python 3.12.3
-Description:
-This script defines the Settings interface for managing
-the oscilloscope data save directory. Users can browse,
-select, and save their preferred directory for storing
-measurement data. The configuration is saved in a file
-and reloaded upon startup.
-===================================================
-"""
-
-
 import os
 import tkinter as tk
 from tkinter import filedialog, messagebox
 
 from keysight_software.paths import project_path
+from keysight_software.ui.theme import (
+    COLORS,
+    create_button,
+    create_card,
+    create_entry,
+    create_label,
+    create_section_heading,
+)
 
 
 CONFIG_FILE = project_path("config.txt")
 
 
-class Setting:
-    """
-    A class to manage settings for saving oscilloscope data, allowing users to
-    specify and save a directory for storing captured data.
-    """
+def read_config_lines():
+    for encoding in ("utf-8", "gbk", "cp1252", "latin-1"):
+        try:
+            with open(CONFIG_FILE, 'r', encoding=encoding) as config_file:
+                return config_file.readlines()
+        except (FileNotFoundError, UnicodeDecodeError):
+            continue
+    return []
 
+
+class Setting(tk.Frame):
     def __init__(self, master):
-        """Initialize the settings window with UI elements for selecting and saving the directory."""
-        self.master = master
-
-        # Default save directory
+        super().__init__(master, bg=COLORS["background"])
+        self.grid(row=0, column=0, sticky="nsew")
+        self.grid_columnconfigure(0, weight=1)
         self.save_directory = tk.StringVar(value="C:/Users/Public/OscilloscopeData")
-
-        # Label to display save directory
-        tk.Label(master, text="Save Directory:", bg="white", bd=0).grid(row=0, column=0, padx=60, pady=10)
-        self.directory_entry = tk.Entry(master, textvariable=self.save_directory, width=50)
-        self.directory_entry.grid(row=0, column=1, padx=10, pady=10)
-
-        # Browse button to select directory
-        browse_button = tk.Button(master, text="Browse...", command=self.browse_directory)
-        browse_button.grid(row=0, column=2, padx=10, pady=10)
-
-        # Save settings button
-        save_button = tk.Button(master, text="Save Settings", command=self.save_settings)
-        save_button.grid(row=1, column=1, pady=10)
-
-        # Load existing settings if available
+        self.build_page()
         self.load_settings()
 
+    def build_page(self):
+        card, inner = create_card(self, padding=30)
+        card.grid(row=0, column=0, sticky="nsew")
+        inner.grid_columnconfigure(0, weight=1)
+
+        create_section_heading(
+            inner,
+            "Export preferences",
+            "Set the default destination for screenshots, waveforms and measurement exports.",
+        ).grid(row=0, column=0, sticky="w")
+
+        field = tk.Frame(inner, bg=inner.cget("bg"))
+        field.grid(row=1, column=0, sticky="ew", pady=(22, 0))
+        field.grid_columnconfigure(0, weight=1)
+        create_label(field, "Save Directory", muted=True).grid(row=0, column=0, sticky="w")
+        self.directory_entry = create_entry(field, textvariable=self.save_directory)
+        self.directory_entry.grid(row=1, column=0, sticky="ew", pady=(8, 0), ipady=10)
+
+        actions = tk.Frame(inner, bg=inner.cget("bg"))
+        actions.grid(row=2, column=0, sticky="w", pady=(18, 0))
+        create_button(actions, "Browse Folder", self.browse_directory, tone="secondary").pack(
+            side="left", padx=(0, 10)
+        )
+        create_button(actions, "Save Settings", self.save_settings, tone="primary").pack(side="left")
+
     def browse_directory(self):
-        """Open a file dialog to select a directory and update the entry field."""
         directory = filedialog.askdirectory(initialdir=self.save_directory.get())
         if directory:
             self.save_directory.set(directory)
 
     def save_settings(self):
-        """Save the currently selected directory path to a configuration file."""
         selected_directory = self.save_directory.get()
         if not os.path.exists(selected_directory):
-            os.makedirs(selected_directory)  # Create directory if it does not exist
+            os.makedirs(selected_directory)
 
-        # Save directory path to a config file
         with open(CONFIG_FILE, 'w', encoding="utf-8") as config_file:
             config_file.write(f"SAVE_DIRECTORY={selected_directory}\n")
 
         messagebox.showinfo("Settings", "Settings saved successfully!")
 
     def load_settings(self):
-        """Load previously saved settings from the configuration file."""
-        try:
-            with open(CONFIG_FILE, 'r', encoding="utf-8") as config_file:
-                for line in config_file:
-                    if line.startswith("SAVE_DIRECTORY="):
-                        directory = line.split("=")[1].strip()
-                        self.save_directory.set(directory)
-        except FileNotFoundError:
-            # If the config file does not exist, use the default directory
-            pass
+        for line in read_config_lines():
+            if line.startswith("SAVE_DIRECTORY="):
+                directory = line.split("=", 1)[1].strip()
+                self.save_directory.set(directory)
+                break
 
 
 def get_save_directory():
     """Retrieve the currently set save directory from the configuration file."""
-    try:
-        with open(CONFIG_FILE, 'r', encoding="utf-8") as config_file:
-            for line in config_file:
-                if line.startswith("SAVE_DIRECTORY="):
-                    return line.split("=")[1].strip()
-    except FileNotFoundError:
-        return "C:/Users/Public/OscilloscopeData"  # Return default path if no config file exists
+    for line in read_config_lines():
+        if line.startswith("SAVE_DIRECTORY="):
+            return line.split("=", 1)[1].strip()
+    return "C:/Users/Public/OscilloscopeData"
 
 
 if __name__ == "__main__":
     root = tk.Tk()
-    root.title("Settings")  # Set window title
-    root.geometry("600x150")  # Set window size
-    app = Setting(root)
+    root.title("Settings")
+    root.geometry("600x150")
+    Setting(root)
     root.mainloop()
 
