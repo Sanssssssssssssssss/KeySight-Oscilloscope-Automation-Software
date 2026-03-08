@@ -11,6 +11,7 @@ except ImportError:  # pragma: no cover - optional runtime dependency
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QFileDialog,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -20,7 +21,6 @@ from PySide6.QtWidgets import (
     QPushButton,
     QVBoxLayout,
     QWidget,
-    QFileDialog,
 )
 
 
@@ -29,9 +29,9 @@ class HomePage(QWidget):
         super().__init__()
         self.reconnect_callback = reconnect_callback
         self.metric_labels: dict[str, QLabel] = {}
-        self.log_output: QPlainTextEdit | None = None
         self.connection_badge: QLabel | None = None
         self.connection_summary: QLabel | None = None
+        self.log_output: QPlainTextEdit | None = None
         self.visa_input: QLineEdit | None = None
         self.timeout_input: QLineEdit | None = None
         self.directory_input: QLineEdit | None = None
@@ -42,77 +42,96 @@ class HomePage(QWidget):
     def build_ui(self):
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(16)
+        root.setSpacing(14)
 
-        top_grid = QGridLayout()
-        top_grid.setHorizontalSpacing(16)
-        top_grid.setVerticalSpacing(16)
-        top_grid.setColumnStretch(0, 8)
-        top_grid.setColumnStretch(1, 4)
-        root.addLayout(top_grid)
+        root.addWidget(self.build_overview_card())
 
-        top_grid.addWidget(self.build_hero_card(), 0, 0)
+        form_grid = QGridLayout()
+        form_grid.setHorizontalSpacing(14)
+        form_grid.setVerticalSpacing(14)
+        form_grid.setColumnStretch(0, 1)
+        form_grid.setColumnStretch(1, 1)
+        form_grid.addWidget(self.build_instrument_card(), 0, 0)
+        form_grid.addWidget(self.build_workspace_card(), 0, 1)
+        root.addLayout(form_grid)
 
-        side_stack = QVBoxLayout()
-        side_stack.setSpacing(16)
-        side_stack.addWidget(self.build_status_card())
-        side_stack.addWidget(self.build_dark_card())
-        top_grid.addLayout(side_stack, 0, 1)
+        root.addWidget(self.build_log_card())
+        root.addStretch(1)
 
-        root.addWidget(self.build_control_center())
-        root.addWidget(self.build_log_card(), 1)
-
-    def build_hero_card(self):
+    def build_overview_card(self):
         card = QFrame()
-        card.setObjectName("HeroCard")
+        card.setObjectName("SurfaceCard")
         layout = QVBoxLayout(card)
-        layout.setContentsMargins(28, 26, 28, 26)
-        layout.setSpacing(18)
+        layout.setContentsMargins(22, 20, 22, 20)
+        layout.setSpacing(16)
 
-        eyebrow = QLabel("Bench dashboard")
-        eyebrow.setObjectName("Eyebrow")
-        layout.addWidget(eyebrow)
+        top = QHBoxLayout()
+        top.setSpacing(12)
 
-        title = QLabel("A migration path to a more modern desktop UI.")
-        title.setObjectName("HeroTitle")
-        title.setWordWrap(True)
-        layout.addWidget(title)
-
+        title_block = QVBoxLayout()
+        title_block.setSpacing(6)
+        heading = QLabel("Bench overview")
+        heading.setObjectName("SectionTitle")
         body = QLabel(
-            "This Qt shell is the starting point for moving the product away from classic Tk constraints. "
-            "The layout is denser, styling is easier to control, and later pages can be built more like a real app shell."
+            "Keep the device target, timeout, and output profile aligned before moving into capture and automation."
         )
-        body.setObjectName("HeroBody")
+        body.setObjectName("MutedBody")
         body.setWordWrap(True)
-        layout.addWidget(body)
+        title_block.addWidget(heading)
+        title_block.addWidget(body)
+        top.addLayout(title_block, 1)
 
-        buttons = QHBoxLayout()
-        buttons.setSpacing(10)
+        status = QFrame()
+        status.setObjectName("InlineStatusCard")
+        status_layout = QHBoxLayout(status)
+        status_layout.setContentsMargins(12, 10, 12, 10)
+        status_layout.setSpacing(10)
+        meta = QLabel("Connection")
+        meta.setObjectName("StatusMeta")
+        self.connection_badge = QLabel("Offline")
+        self.connection_badge.setObjectName("StatusText")
+        self.connection_badge.setProperty("status", "warn")
+        reconnect = QPushButton("Reconnect")
+        reconnect.setObjectName("GhostButton")
+        reconnect.clicked.connect(self.connect_scope)
+        status_layout.addWidget(meta)
+        status_layout.addWidget(self.connection_badge)
+        status_layout.addWidget(reconnect)
+        top.addWidget(status, 0, Qt.AlignTop)
+        layout.addLayout(top)
+
+        self.connection_summary = QLabel("Waiting for an automatic discovery pass or a manual connection attempt.")
+        self.connection_summary.setObjectName("MutedBody")
+        self.connection_summary.setWordWrap(True)
+        layout.addWidget(self.connection_summary)
+
+        action_row = QHBoxLayout()
+        action_row.setSpacing(10)
         detect = QPushButton("Detect VISA Address")
         detect.setObjectName("GhostButton")
         detect.clicked.connect(self.try_auto_detect)
         connect = QPushButton("Connect Instrument")
         connect.setObjectName("PrimaryButton")
         connect.clicked.connect(self.connect_scope)
-        buttons.addWidget(detect)
-        buttons.addWidget(connect)
-        buttons.addStretch(1)
-        layout.addLayout(buttons)
+        action_row.addWidget(detect)
+        action_row.addWidget(connect)
+        action_row.addStretch(1)
+        layout.addLayout(action_row)
 
-        metrics = QGridLayout()
-        metrics.setHorizontalSpacing(12)
-        metrics.setVerticalSpacing(12)
-        items = [
+        metrics_row = QGridLayout()
+        metrics_row.setHorizontalSpacing(12)
+        metrics_row.setVerticalSpacing(12)
+        metrics = [
             ("Default VISA", config.VISA_ADDRESS),
             ("Timeout", f"{config.GLOBAL_TIMEOUT} ms"),
             ("Base output", config.BASE_DIRECTORY),
         ]
-        for index, (label_text, value_text) in enumerate(items):
+        for column, (label_text, value_text) in enumerate(metrics):
             metric = QFrame()
             metric.setObjectName("MetricCard")
             metric_layout = QVBoxLayout(metric)
-            metric_layout.setContentsMargins(16, 14, 16, 14)
-            metric_layout.setSpacing(6)
+            metric_layout.setContentsMargins(14, 12, 14, 12)
+            metric_layout.setSpacing(4)
             label = QLabel(label_text)
             label.setObjectName("MetricLabel")
             value = QLabel(value_text)
@@ -120,109 +139,26 @@ class HomePage(QWidget):
             value.setWordWrap(True)
             metric_layout.addWidget(label)
             metric_layout.addWidget(value)
-            metrics.addWidget(metric, 0, index)
+            metrics_row.addWidget(metric, 0, column)
             self.metric_labels[label_text] = value
-        layout.addLayout(metrics)
-
-        footer = QLabel(
-            "If this shell feels right, the rest of the workflow can be migrated page by page onto the same foundation."
-        )
-        footer.setObjectName("MutedBody")
-        footer.setWordWrap(True)
-        layout.addWidget(footer)
+        layout.addLayout(metrics_row)
         return card
 
-    def build_status_card(self):
-        card = QFrame()
-        card.setObjectName("SurfaceCard")
-        layout = QVBoxLayout(card)
-        layout.setContentsMargins(22, 20, 22, 20)
-        layout.setSpacing(14)
-
-        title = QLabel("Connection pulse")
-        title.setObjectName("MetricValue")
-        layout.addWidget(title)
-
-        row = QHBoxLayout()
-        row.setSpacing(10)
-        meta = QLabel("Status")
-        meta.setObjectName("MetricLabel")
-        self.connection_badge = QLabel("Offline")
-        self.connection_badge.setObjectName("StatusText")
-        self.connection_badge.setProperty("status", "warn")
-        row.addWidget(meta)
-        row.addWidget(self.connection_badge)
-        row.addStretch(1)
-        layout.addLayout(row)
-
-        self.connection_summary = QLabel("Waiting for an automatic discovery pass or manual connection attempt.")
-        self.connection_summary.setObjectName("MutedBody")
-        self.connection_summary.setWordWrap(True)
-        layout.addWidget(self.connection_summary)
-
-        reconnect = QPushButton("Reconnect")
-        reconnect.setObjectName("GhostButton")
-        reconnect.clicked.connect(self.connect_scope)
-        layout.addWidget(reconnect, 0, Qt.AlignLeft)
-        return card
-
-    def build_dark_card(self):
-        card = QFrame()
-        card.setObjectName("DarkCard")
-        layout = QVBoxLayout(card)
-        layout.setContentsMargins(20, 18, 20, 18)
-        layout.setSpacing(8)
-
-        title = QLabel("Migration note")
-        title.setObjectName("DarkTitle")
-        layout.addWidget(title)
-
-        body = QLabel(
-            "Qt gives us proper stylesheet control, richer layout primitives, and a more realistic path toward polished desktop UI than raw Tk."
-        )
-        body.setObjectName("DarkBody")
-        body.setWordWrap(True)
-        layout.addWidget(body)
-        return card
-
-    def build_control_center(self):
+    def build_instrument_card(self):
         card = QFrame()
         card.setObjectName("SurfaceCard")
         layout = QGridLayout(card)
         layout.setContentsMargins(22, 20, 22, 20)
-        layout.setHorizontalSpacing(18)
-        layout.setVerticalSpacing(14)
-        layout.setColumnStretch(0, 1)
-        layout.setColumnStretch(1, 1)
-
-        heading = QLabel("Control center")
-        heading.setObjectName("MetricValue")
-        sub = QLabel("A denser configuration surface for connection and workspace defaults.")
-        sub.setObjectName("MutedBody")
-        sub.setWordWrap(True)
-        layout.addWidget(heading, 0, 0, 1, 2)
-        layout.addWidget(sub, 1, 0, 1, 2)
-
-        left = self.build_instrument_panel()
-        right = self.build_workspace_panel()
-        layout.addWidget(left, 2, 0)
-        layout.addWidget(right, 2, 1)
-        return card
-
-    def build_instrument_panel(self):
-        panel = QWidget()
-        layout = QGridLayout(panel)
-        layout.setContentsMargins(0, 0, 0, 0)
         layout.setHorizontalSpacing(12)
-        layout.setVerticalSpacing(12)
+        layout.setVerticalSpacing(10)
 
-        title = QLabel("Instrument target")
-        title.setObjectName("MetricValue")
-        desc = QLabel("Tune address and timeout without wasting vertical space.")
-        desc.setObjectName("MutedBody")
-        desc.setWordWrap(True)
-        layout.addWidget(title, 0, 0, 1, 2)
-        layout.addWidget(desc, 1, 0, 1, 2)
+        heading = QLabel("Instrument target")
+        heading.setObjectName("SectionTitle")
+        text = QLabel("Tune address and timeout in a tighter control block.")
+        text.setObjectName("MutedBody")
+        text.setWordWrap(True)
+        layout.addWidget(heading, 0, 0, 1, 2)
+        layout.addWidget(text, 1, 0, 1, 2)
 
         layout.addWidget(self.make_field_label("VISA Address"), 2, 0, 1, 2)
         self.visa_input = QLineEdit(config.VISA_ADDRESS)
@@ -244,22 +180,23 @@ class HomePage(QWidget):
         actions.addWidget(connect)
         actions.addStretch(1)
         layout.addLayout(actions, 5, 1)
-        return panel
+        return card
 
-    def build_workspace_panel(self):
-        panel = QWidget()
-        layout = QGridLayout(panel)
-        layout.setContentsMargins(0, 0, 0, 0)
+    def build_workspace_card(self):
+        card = QFrame()
+        card.setObjectName("SurfaceCard")
+        layout = QGridLayout(card)
+        layout.setContentsMargins(22, 20, 22, 20)
         layout.setHorizontalSpacing(12)
-        layout.setVerticalSpacing(12)
+        layout.setVerticalSpacing(10)
 
-        title = QLabel("Workspace profile")
-        title.setObjectName("MetricValue")
-        desc = QLabel("Keep storage and naming aligned with the rest of the workflow.")
-        desc.setObjectName("MutedBody")
-        desc.setWordWrap(True)
-        layout.addWidget(title, 0, 0, 1, 2)
-        layout.addWidget(desc, 1, 0, 1, 2)
+        heading = QLabel("Workspace profile")
+        heading.setObjectName("SectionTitle")
+        text = QLabel("Keep storage and naming consistent across exports and scripts.")
+        text.setObjectName("MutedBody")
+        text.setWordWrap(True)
+        layout.addWidget(heading, 0, 0, 1, 2)
+        layout.addWidget(text, 1, 0, 1, 2)
 
         layout.addWidget(self.make_field_label("Base Directory"), 2, 0, 1, 2)
         self.directory_input = QLineEdit(config.BASE_DIRECTORY)
@@ -281,21 +218,21 @@ class HomePage(QWidget):
         actions.addWidget(save)
         actions.addStretch(1)
         layout.addLayout(actions, 5, 1)
-        return panel
+        return card
 
     def build_log_card(self):
         card = QFrame()
         card.setObjectName("SurfaceCard")
         layout = QVBoxLayout(card)
-        layout.setContentsMargins(22, 20, 22, 20)
-        layout.setSpacing(12)
+        layout.setContentsMargins(22, 18, 22, 18)
+        layout.setSpacing(10)
 
         heading = QLabel("Connection log")
-        heading.setObjectName("MetricValue")
-        layout.addWidget(heading)
-        subtitle = QLabel("A compact event stream for discovery, validation, and save activity.")
+        heading.setObjectName("SectionTitle")
+        subtitle = QLabel("A compact event stream for discovery, validation, and profile saves.")
         subtitle.setObjectName("MutedBody")
         subtitle.setWordWrap(True)
+        layout.addWidget(heading)
         layout.addWidget(subtitle)
 
         self.log_output = QPlainTextEdit()
@@ -336,7 +273,6 @@ class HomePage(QWidget):
             )
             self.log("pyvisa is not installed. Please enter the VISA address manually.")
             return
-
         try:
             manager = pyvisa.ResourceManager()
             resources = manager.list_resources()
