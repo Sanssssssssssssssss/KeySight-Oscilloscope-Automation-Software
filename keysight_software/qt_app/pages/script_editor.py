@@ -8,6 +8,7 @@ from typing import Callable
 from PySide6.QtWidgets import (
     QFileDialog,
     QDoubleSpinBox,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QListWidget,
@@ -67,6 +68,7 @@ class ScriptEditorPage(QWidget):
         self.validation_badge: QLabel | None = None
         self.path_label = QLabel("Save folder: not selected")
         self.path_label.setObjectName("MutedBody")
+        self.path_label.setWordWrap(True)
         self.log_output = create_log(180)
         self.build_ui()
         self.load_editor_state()
@@ -127,7 +129,8 @@ class ScriptEditorPage(QWidget):
             button.setObjectName("GhostButton")
             button.clicked.connect(lambda _checked=False, module=module_type: self.add_step(module))
             layout.addWidget(button)
-        actions = QHBoxLayout()
+        actions = QVBoxLayout()
+        actions.setSpacing(8)
         new_button = QPushButton("New Sequence")
         new_button.setObjectName("PrimaryButton")
         new_button.clicked.connect(self.new_sequence)
@@ -136,7 +139,6 @@ class ScriptEditorPage(QWidget):
         clear_button.clicked.connect(self.clear_middle_steps)
         actions.addWidget(new_button)
         actions.addWidget(clear_button)
-        actions.addStretch(1)
         layout.addLayout(actions)
         return card
 
@@ -144,7 +146,9 @@ class ScriptEditorPage(QWidget):
         card, layout = create_card("Sequence builder", "Select a step to edit its details, reorder it, or validate the final execution flow.")
         status_shell, self.validation_badge = create_inline_status("Validation", "Draft", "warn")
         layout.addWidget(status_shell)
-        toolbar = QHBoxLayout()
+        toolbar = QGridLayout()
+        toolbar.setHorizontalSpacing(8)
+        toolbar.setVerticalSpacing(8)
         for label_text, callback, primary in (
             ("Move Up", lambda: self.move_selected(-1), False),
             ("Move Down", lambda: self.move_selected(1), False),
@@ -154,8 +158,8 @@ class ScriptEditorPage(QWidget):
             button = QPushButton(label_text)
             button.setObjectName("PrimaryButton" if primary else "GhostButton")
             button.clicked.connect(callback)
-            toolbar.addWidget(button)
-        toolbar.addStretch(1)
+            row, column = divmod(toolbar.count(), 2)
+            toolbar.addWidget(button, row, column)
         layout.addLayout(toolbar)
         self.sequence_list.currentRowChanged.connect(self.on_sequence_select)
         self.sequence_list.setMinimumHeight(280)
@@ -176,7 +180,8 @@ class ScriptEditorPage(QWidget):
         layout.addWidget(apply_delay)
         layout.addWidget(self.config_status)
         layout.addWidget(self.config_button)
-        actions = QHBoxLayout()
+        actions = QVBoxLayout()
+        actions.setSpacing(8)
         validate = QPushButton("Validate Sequence")
         validate.setObjectName("PrimaryButton")
         validate.clicked.connect(self.validate_sequence)
@@ -185,7 +190,6 @@ class ScriptEditorPage(QWidget):
         save_state.clicked.connect(self.save_editor_state)
         actions.addWidget(validate)
         actions.addWidget(save_state)
-        actions.addStretch(1)
         layout.addLayout(actions)
         return card
 

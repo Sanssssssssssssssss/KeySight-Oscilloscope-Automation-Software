@@ -3,6 +3,7 @@ from __future__ import annotations
 from functools import partial
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -28,8 +29,8 @@ from keysight_software.qt_app.state import AppState
 from keysight_software.qt_app.styles import APP_STYLESHEET
 
 
-PAGE_CONTENT_MAX_WIDTH = 1120
-PAGE_CONTENT_MIN_WIDTH = 760
+PAGE_CONTENT_MAX_WIDTH = 1060
+PAGE_CONTENT_MIN_WIDTH = 680
 
 
 class MainWindow(QMainWindow):
@@ -42,10 +43,10 @@ class MainWindow(QMainWindow):
         self.page_widgets: dict[str, QWidget] = {}
         self.runner_page: RunScriptPage | None = None
         self.setWindowTitle("Keysight Automation Studio")
-        self.resize(1490, 920)
-        self.setMinimumSize(1160, 760)
+        self.setMinimumSize(980, 680)
         self.setStyleSheet(APP_STYLESHEET)
         self.build_ui()
+        self.apply_initial_geometry()
         self.state.changed.connect(self.refresh_status)
         self.refresh_status()
 
@@ -130,7 +131,7 @@ class MainWindow(QMainWindow):
     def build_sidebar(self):
         sidebar = QFrame()
         sidebar.setObjectName("Sidebar")
-        sidebar.setFixedWidth(148)
+        sidebar.setFixedWidth(140)
         layout = QVBoxLayout(sidebar)
         layout.setContentsMargins(10, 14, 10, 14)
         layout.setSpacing(8)
@@ -177,6 +178,7 @@ class MainWindow(QMainWindow):
         title_box.setSpacing(0)
         self.page_title = QLabel()
         self.page_title.setObjectName("PageTitle")
+        self.page_title.setWordWrap(True)
         self.page_subtitle = QLabel()
         self.page_subtitle.setObjectName("PageSubtitle")
         self.page_subtitle.setWordWrap(True)
@@ -257,10 +259,22 @@ class MainWindow(QMainWindow):
 
     def update_page_widths(self):
         viewport_width = self.scroll_area.viewport().width()
-        available_width = max(viewport_width - 32, PAGE_CONTENT_MIN_WIDTH)
+        available_width = max(viewport_width - 24, 320)
         target_width = min(PAGE_CONTENT_MAX_WIDTH, available_width)
+        if available_width >= PAGE_CONTENT_MIN_WIDTH:
+            target_width = max(PAGE_CONTENT_MIN_WIDTH, target_width)
         for widget in self.page_widgets.values():
             widget.setFixedWidth(target_width)
+
+    def apply_initial_geometry(self):
+        screen = self.screen() or QGuiApplication.primaryScreen()
+        if screen is None:
+            self.resize(1360, 860)
+            return
+        available = screen.availableGeometry()
+        target_width = min(1380, max(1040, available.width() - 72))
+        target_height = min(900, max(720, available.height() - 72))
+        self.resize(target_width, target_height)
 
     def reconnect_scope(self):
         self.state.connect_scope(config.VISA_ADDRESS, config.GLOBAL_TIMEOUT)
