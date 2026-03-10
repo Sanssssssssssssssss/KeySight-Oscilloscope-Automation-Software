@@ -121,7 +121,7 @@ class AxisControlPage(QWidget):
         channels_layout.addLayout(actions)
         root.addWidget(channels_card, 1, 0)
 
-        log_card, log_layout = create_card("Activity log", "Application feedback appears here after loading, saving, or applying axis changes.")
+        log_card, log_layout = create_card("Activity log", "Feedback after loading, saving, or applying axis changes.")
         log_layout.addWidget(self.log_output)
         root.addWidget(log_card, 1, 1)
 
